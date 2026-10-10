@@ -219,6 +219,33 @@ button {
   color: #aaa
 }
 
+.hidden-nav-row {
+  display: flex;
+  align-items: center;
+  gap: 4px
+}
+
+.hidden-nav-row > .nav-item {
+  flex: 1;
+  width: auto
+}
+
+.hidden-lock {
+  flex: 0 0 32px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #9295a2
+}
+
+.hidden-lock:hover {
+  background: #f8f7fc;
+  color: #6249cf
+}
+
 .folders-label {
   display: flex;
   align-items: center;
@@ -803,7 +830,7 @@ button {
   background: #fffdf3
 }
 
-.file-art.png,.file-art.jpg,.file-art.jpeg,.file-art.gif,.file-art.webp,.file-art.svg {
+.file-art.png,.file-art.jpg,.file-art.jpeg,.file-art.gif,.file-art.webp,.file-art.svg,.file-art.mp4,.file-art.webm,.file-art.mov {
   color: #8664d8;
   background: #faf7ff
 }
@@ -1142,6 +1169,12 @@ footer span {
   margin: 0 0 16px
 }
 
+.hidden-password-error {
+  margin: 10px 0 0;
+  color: #b42318;
+  font-size: 12px
+}
+
 .action-name {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1154,6 +1187,15 @@ footer span {
   font-weight: 600;
   color: #616471;
   margin-bottom: 6px
+}
+
+.hidden-password-form input {
+  display: block;
+  margin-bottom: 14px
+}
+
+.hidden-password-form .modal-buttons {
+  margin-top: 0
 }
 
 .modal input,.modal select {
@@ -1300,6 +1342,15 @@ footer span {
   max-height: 100%;
   max-width: 100%;
   object-fit: contain
+}
+
+.preview-body>video {
+  min-width: 0;
+  max-width: 100%;
+  max-height: 100%;
+  align-self: center;
+  object-fit: contain;
+  background: #111
 }
 
 .preview-body iframe {

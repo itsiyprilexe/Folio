@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Folder, FolderOpen, Files, Image as ImageIcon, FileText, Presentation, Table2, Archive, Code2, Upload, Plus, Search, Grid2X2, List, MoreHorizontal, Download, Eye, Pencil, Trash2, ChevronRight, ChevronLeft, ChevronDown, ArrowLeft, ArrowUpDown, Tag, X, File, CheckCircle2, AlertCircle, CloudUpload, Menu, ArrowLeftRight, LockKeyhole, Command } from 'lucide-react';
+import { Folder, FolderOpen, Files, Image as ImageIcon, FileText, Presentation, Table2, Archive, Code2, Video, Upload, Plus, Search, Grid2X2, List, MoreHorizontal, Download, Eye, EyeOff, Pencil, Trash2, ChevronRight, ChevronLeft, ChevronDown, ArrowLeft, ArrowUpDown, Tag, X, File, CheckCircle2, AlertCircle, CloudUpload, Menu, ArrowLeftRight, LockKeyhole, Command } from 'lucide-react';
 import './style.css';
 const fmtSize = n => n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1048576).toFixed(1)} MB`;
 const date = x => new Date(x).toLocaleDateString(undefined, {
@@ -11,11 +11,12 @@ const date = x => new Date(x).toLocaleDateString(undefined, {
 const ext = x => (x.split('.').pop() || 'FILE').toUpperCase();
 const sourceCodeTypes = ['JS', 'MJS', 'CJS', 'JSX', 'TS', 'MTS', 'CTS', 'TSX', 'PY', 'PYI', 'PYW', 'JAVA', 'C', 'H', 'CC', 'CPP', 'CXX', 'HH', 'HPP', 'HXX', 'CS', 'CSX', 'CSHTML', 'RAZOR', 'FS', 'FSI', 'FSX', 'VB', 'GO', 'RS', 'PHP', 'RB', 'R', 'SWIFT', 'KT', 'KTS', 'DART', 'LUA', 'PL', 'PM', 'EX', 'EXS', 'HS', 'LHS', 'SCALA', 'SC', 'CLJ', 'CLJC', 'CLJS', 'EDN', 'ERL', 'HRL', 'SQL', 'PGSQL', 'PSQL', 'SH', 'BASH', 'ZSH', 'FISH', 'PS1', 'PSM1', 'PSD1', 'BAT', 'CMD', 'HTML', 'HTM', 'CSS', 'SCSS', 'SASS', 'LESS', 'JSON', 'JSONC', 'JSON5', 'XML', 'YAML', 'YML', 'TOML', 'INI', 'CFG', 'CONF', 'PROPERTIES', 'GRADLE', 'GROOVY', 'HCL', 'TF', 'TFVARS', 'NIX', 'VUE', 'SVELTE', 'ASTRO', 'GRAPHQL', 'GQL', 'PROTO', 'MDX', 'IPYNB', 'TEX', 'ASM', 'S', 'D', 'ZIG', 'V', 'NIM', 'CR', 'JL', 'M', 'MM', 'SOL', 'MOVE', 'WAT', 'WGSL', 'DIFF', 'PATCH', 'MAKE', 'MK', 'CMAKE', 'BZL', 'LISP', 'LSP', 'SCM', 'RKT', 'EL', 'ML', 'MLI', 'F', 'FOR', 'F77', 'F90', 'F95', 'F03', 'F08', 'F18', 'FPP', 'COB', 'CBL', 'COBOL', 'PAS', 'P', 'PP', 'INO', 'SV', 'VHD', 'VHDL', 'TCL', 'AWK', 'ELM', 'PURS', 'RE', 'REI'];
 const sourceCodeTypeSet = new Set(sourceCodeTypes);
-const acceptedFileTypes = ['PDF', 'DOC', 'DOCX', 'PPT', 'PPTX', 'XLS', 'XLSX', 'ZIP', ...sourceCodeTypes, 'PNG', 'JPG', 'JPEG', 'GIF', 'WEBP', 'SVG', 'TXT', 'MD', 'CSV'];
-const fileTypes = ['PDF', 'DOC', 'DOCX', 'PPT', 'PPTX', 'XLS', 'XLSX', 'ZIP', 'CODE', 'PNG', 'JPG', 'JPEG', 'GIF', 'WEBP', 'SVG', 'TXT', 'MD', 'CSV'];
+const acceptedFileTypes = ['PDF', 'DOC', 'DOCX', 'PPT', 'PPTX', 'XLS', 'XLSX', 'ZIP', ...sourceCodeTypes, 'PNG', 'JPG', 'JPEG', 'GIF', 'WEBP', 'SVG', 'MP4', 'WEBM', 'MOV', 'TXT', 'MD', 'CSV'];
+const videoFileTypes = new Set(['MP4', 'WEBM', 'MOV']);
+const fileTypes = ['PDF', 'DOC', 'DOCX', 'PPT', 'PPTX', 'XLS', 'XLSX', 'ZIP', 'CODE', 'PNG', 'JPG', 'JPEG', 'GIF', 'WEBP', 'SVG', 'VIDEO', 'TXT', 'MD', 'CSV'];
 const iconFor = n => {
   const e = ext(n);
-  return e === 'ZIP' ? Archive : sourceCodeTypeSet.has(e) ? Code2 : e === 'PDF' || ['DOC', 'DOCX', 'TXT', 'MD'].includes(e) ? FileText : ['PPT', 'PPTX'].includes(e) ? Presentation : ['XLS', 'XLSX', 'CSV'].includes(e) ? Table2 : ['PNG', 'JPG', 'JPEG', 'GIF', 'WEBP'].includes(e) ? ImageIcon : File;
+  return e === 'ZIP' ? Archive : videoFileTypes.has(e) ? Video : sourceCodeTypeSet.has(e) ? Code2 : e === 'PDF' || ['DOC', 'DOCX', 'TXT', 'MD'].includes(e) ? FileText : ['PPT', 'PPTX'].includes(e) ? Presentation : ['XLS', 'XLSX', 'CSV'].includes(e) ? Table2 : ['PNG', 'JPG', 'JPEG', 'GIF', 'WEBP'].includes(e) ? ImageIcon : File;
 };
 function App() {
   const [token, setToken] = useState(''),
@@ -24,7 +25,10 @@ function App() {
     [sessionChecking, setSessionChecking] = useState(true),
     [files, setFiles] = useState([]),
     [workspaceFiles, setWorkspaceFiles] = useState([]),
+    [hiddenWorkspaceFiles, setHiddenWorkspaceFiles] = useState([]),
+    [workspaceStats, setWorkspaceStats] = useState({ total: 0, bytes: 0, hiddenCount: 0 }),
     [folders, setFolders] = useState([]),
+    [hiddenFolders, setHiddenFolders] = useState([]),
     [folder, setFolder] = useState('all'),
     [query, setQuery] = useState(''),
     [sort, setSort] = useState('modified_at'),
@@ -41,6 +45,10 @@ function App() {
     [mobileNav, setMobileNav] = useState(false),
     [filter, setFilter] = useState('all'),
     [page, setPage] = useState(0);
+  const [hiddenPasswordConfigured, setHiddenPasswordConfigured] = useState(false);
+  const [hiddenUnlocked, setHiddenUnlocked] = useState(false);
+  const [hiddenStatusReady, setHiddenStatusReady] = useState(false);
+  const hiddenMode = folder === 'hidden' || hiddenFolders.some(item => item.id === folder);
   const [collapsedFolders, setCollapsedFolders] = useState(() => new Set());
   const input = useRef();
   const folderInput = useRef();
@@ -64,12 +72,16 @@ function App() {
   }
   async function refresh() {
     const version = ++refreshVersion.current;
-    const folderQuery = folder === 'all' || folder === 'starred' ? '' : folder;
-    const [currentFiles, allFiles, allFolders, searchedFiles] = await Promise.all([api(`/api/files?folder=${encodeURIComponent(folderQuery)}&q=${encodeURIComponent(query)}`), api('/api/files'), api('/api/folders'), folder === 'starred' ? api(`/api/files?q=${encodeURIComponent(query)}`) : Promise.resolve([])]);
+    const folderQuery = folder === 'all' ? 'root' : folder === 'starred' || folder === 'hidden' ? '' : folder;
+    const listingQuery = hiddenMode ? 'view=hidden&' : '';
+    const [currentFiles, allFiles, allFolders, stats, searchedFiles, privateFolders, allPrivateFiles] = await Promise.all([api(`/api/files?${listingQuery}folder=${encodeURIComponent(folderQuery)}&q=${encodeURIComponent(query)}`), api('/api/files'), api('/api/folders'), api('/api/storage'), folder === 'starred' ? api(`/api/files?q=${encodeURIComponent(query)}`) : Promise.resolve([]), hiddenMode ? api('/api/folders?view=hidden') : Promise.resolve([]), hiddenMode ? api('/api/files?view=hidden') : Promise.resolve([])]);
     if (version !== refreshVersion.current) return;
     setWorkspaceFiles(allFiles);
+    setWorkspaceStats(stats);
     setFiles(folder === 'starred' ? searchedFiles.filter(file => file.tags.includes('starred')) : currentFiles);
     setFolders(allFolders);
+    setHiddenFolders(privateFolders);
+    setHiddenWorkspaceFiles(allPrivateFiles);
   }
   useEffect(() => {
     localStorage.removeItem('folio-token');
@@ -80,9 +92,26 @@ function App() {
   }, []);
   useEffect(() => {
     if (!authorized) return;
-    const timer = window.setTimeout(() => refresh().catch(e => toast(e.message, 'error')), query ? 180 : 0);
+    const timer = window.setTimeout(() => refresh().catch(e => {
+      if (folder === 'hidden') {
+        setHiddenUnlocked(false);
+        setFolder('all');
+        setModal('hidden-password');
+      }
+      toast(e.message, 'error');
+    }), query ? 180 : 0);
     return () => window.clearTimeout(timer);
   }, [authorized, folder, query]);
+  useEffect(() => {
+    if (!authorized) return;
+    api('/api/hidden/status').then(status => {
+      setHiddenPasswordConfigured(status.configured);
+      setHiddenUnlocked(status.unlocked);
+    }).catch(() => {
+      setHiddenPasswordConfigured(false);
+      setHiddenUnlocked(false);
+    }).finally(() => setHiddenStatusReady(true));
+  }, [authorized]);
   useEffect(() => {
     setPage(0);
   }, [folder, query, filter, sizeFilter, dateFilter, sort]);
@@ -109,7 +138,9 @@ function App() {
   }
   const visible = useMemo(() => {
     let a = [...files];
-    if (filter === 'CODE') a = a.filter(f => sourceCodeTypeSet.has(ext(f.name)));
+    if (folder === 'all' && filter === 'all') a = [];
+    else if (filter === 'CODE') a = a.filter(f => sourceCodeTypeSet.has(ext(f.name)));
+    else if (filter === 'VIDEO') a = a.filter(f => videoFileTypes.has(ext(f.name)));
     else if (filter !== 'all') a = a.filter(f => ext(f.name) === filter);
     if (sizeFilter === 'small') a = a.filter(file => file.size < 1024 * 1024);
     if (sizeFilter === 'medium') a = a.filter(file => file.size >= 1024 * 1024 && file.size < 10 * 1024 * 1024);
@@ -121,25 +152,26 @@ function App() {
     }
     a.sort((x, y) => sort === 'name' ? x.name.localeCompare(y.name) : sort === 'type' ? ext(x.name).localeCompare(ext(y.name)) : sort === 'size' ? y.size - x.size : new Date(y[sort]) - new Date(x[sort]));
     return a;
-  }, [files, filter, sizeFilter, dateFilter, sort]);
+  }, [files, folder, filter, sizeFilter, dateFilter, sort]);
   const childFolders = useMemo(() => {
     if (folder === 'starred') return [];
-    const parentId = folder === 'all' ? null : folder;
+    const parentId = folder === 'all' || folder === 'hidden' ? null : folder;
     const normalizedQuery = query.trim().toLocaleLowerCase();
-    return folders
+    return (hiddenMode ? hiddenFolders : folders)
       .filter(item => (item.parent_id || null) === parentId && (!normalizedQuery || item.name.toLocaleLowerCase().includes(normalizedQuery)))
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [folders, folder, query]);
-  const folderItemCount = item => workspaceFiles.filter(file => file.folder_id === item.id).length + folders.filter(child => child.parent_id === item.id).length;
+  }, [folders, hiddenFolders, hiddenMode, folder, query]);
+  const folderItemCount = item => (hiddenMode ? hiddenWorkspaceFiles : workspaceFiles).filter(file => file.folder_id === item.id).length + (hiddenMode ? hiddenFolders : folders).filter(child => child.parent_id === item.id).length;
   const pageSize = 12;
   const pageCount = Math.max(1, Math.ceil(visible.length / pageSize));
   const currentPage = Math.min(page, pageCount - 1);
   const pageFiles = visible.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
-  function sendUploadBatch(items, folderId, onProgress) {
+  function sendUploadBatch(items, folderId, onProgress, hidden = false) {
     return new Promise((resolve, reject) => {
       const form = new FormData();
       items.forEach(({ file }) => form.append('files', file, file.name));
       if (folderId) form.append('folderId', folderId);
+      if (hidden) form.append('hidden', 'true');
 
       const xhr = new XMLHttpRequest();
       xhr.open('POST', '/api/files');
@@ -161,13 +193,13 @@ function App() {
     });
   }
 
-  async function uploadItems(items, folderId = folder === 'all' || folder === 'starred' ? null : folder, directories = []) {
+  async function uploadItems(items, folderId = folder === 'all' || folder === 'starred' || folder === 'hidden' ? null : folder, directories = []) {
     if (busy) throw Error('An upload is already in progress.');
     setBusy(true);
     setProgress(0);
 
     try {
-      const allFolders = await api('/api/folders');
+      const allFolders = await api(hiddenMode ? '/api/folders?view=hidden' : '/api/folders');
       const folderByParentAndName = new Map(allFolders.map(item => [`${item.parent_id || ''}\0${item.name.toLocaleLowerCase()}`, item.id]));
       const ensureFolderPath = async segments => {
         let parentId = folderId;
@@ -180,7 +212,7 @@ function App() {
             const created = await api('/api/folders', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ name, parentId })
+              body: JSON.stringify({ name, parentId, hidden: hiddenMode })
             });
             id = created.id;
             folderByParentAndName.set(key, id);
@@ -208,7 +240,7 @@ function App() {
           const batch = destinationItems.slice(offset, offset + 20);
           await sendUploadBatch(batch, destination || null, loaded => {
             setProgress(totalBytes ? Math.round((completedBytes + loaded) / totalBytes * 100) : 100);
-          });
+          }, hiddenMode && !destination);
           completedBytes += batch.reduce((sum, item) => sum + item.file.size, 0);
           uploadedCount += batch.length;
         }
@@ -237,7 +269,7 @@ function App() {
     event.target.value = '';
     if (!items.length) return;
     try {
-      await uploadItems(items, folder === 'all' || folder === 'starred' ? null : folder, directories);
+      await uploadItems(items, folder === 'all' || folder === 'starred' || folder === 'hidden' ? null : folder, directories);
     } catch (error) {
       toast(error.message, 'error');
     }
@@ -323,7 +355,7 @@ function App() {
       if (!dropped.files.length && !dropped.directories.length) {
         throw Error('No files or folders were found in that drop.');
       }
-      await uploadItems(dropped.files, folder === 'all' || folder === 'starred' ? null : folder, dropped.directories);
+      await uploadItems(dropped.files, folder === 'all' || folder === 'starred' || folder === 'hidden' ? null : folder, dropped.directories);
     } catch (error) {
       toast(error.message, 'error');
     }
@@ -355,7 +387,8 @@ function App() {
       },
       body: JSON.stringify({
         name,
-        parentId: folder === 'all' || folder === 'starred' ? null : folder
+        parentId: folder === 'all' || folder === 'starred' || folder === 'hidden' ? null : folder,
+        hidden: hiddenMode
       })
     });
     toast('Folder created');
@@ -399,6 +432,45 @@ function App() {
       tags
     });
     toast(tags.includes('starred') ? 'Added to Starred' : 'Removed from Starred');
+  }
+  async function toggleHidden(file) {
+    const hidden = !file.hidden;
+    await api(`/api/files/${file.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hidden })
+    });
+    setModal('');
+    toast(hidden ? 'Moved to Hidden' : 'Restored from Hidden');
+    await refresh();
+  }
+  function openHidden() {
+    setMobileNav(false);
+    if (!hiddenStatusReady) {
+      toast('Hidden is still loading. Try again in a moment.');
+      return;
+    }
+    if (hiddenUnlocked) setFolder('hidden');
+    else setModal('hidden-password');
+  }
+  async function submitHiddenPassword(password) {
+    const endpoint = hiddenPasswordConfigured ? '/api/hidden/unlock' : '/api/hidden/setup';
+    await api(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password })
+    });
+    setHiddenPasswordConfigured(true);
+    setHiddenUnlocked(true);
+    setModal('');
+    setFolder('hidden');
+    toast(hiddenPasswordConfigured ? 'Hidden unlocked' : 'Hidden password created');
+  }
+  async function lockHidden() {
+    await api('/api/hidden/session', { method: 'DELETE' });
+    setHiddenUnlocked(false);
+    if (folder === 'hidden') setFolder('all');
+    toast('Hidden locked');
   }
   async function removeFolder(f) {
     if (!confirm(`Delete folder “${f.name}”? Its files will move to All files, and its subfolders will move up one level.`)) return;
@@ -483,7 +555,7 @@ function App() {
       </button>
       </form>{message && <div className="login-alert">{message.text}</div>}</div>
       </div>;
-  const current = folders.find(f => f.id === folder);
+  const current = (hiddenMode ? hiddenFolders : folders).find(f => f.id === folder);
   return <div className="app" onDragEnter={handleDragEnter} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
       {isDragging && <div className="drop-overlay" aria-live="polite">
       <div className="drop-overlay-card">
@@ -520,10 +592,15 @@ function App() {
           setFolder('all');
           setMobileNav(false);
         }}>
-      <Files size={18} />All files<span className="nav-count">{workspaceFiles.length}</span>
+      <Files size={18} />All files
       </button>
       <button className={`nav-item ${folder === 'starred' ? 'active' : ''}`} onClick={() => setFolder('starred')}>
       <Tag size={18} />Starred</button>
+      <div className="hidden-nav-row">
+      <button className={`nav-item ${hiddenMode ? 'active' : ''}`} onClick={openHidden}>
+      <EyeOff size={18} />Hidden<span className="nav-count">{workspaceStats.hiddenCount}</span>
+      </button>{hiddenUnlocked && <button className="hidden-lock" aria-label="Lock Hidden" title="Lock Hidden" onClick={onError(lockHidden)}><LockKeyhole size={15} /></button>}
+      </div>
       <div className="side-label folders-label">FOLDERS <button className="plus-mini" aria-label="Create folder" onClick={() => setModal('folder')}>
       <Plus size={15} />
       </button>
@@ -556,12 +633,12 @@ function App() {
       </button>
       </div>)}</div>
       <div className="side-label type-label">FILE TYPES</div>{fileTypes.map(type => <button className={`nav-item type-item ${filter === type ? 'active' : ''}`} key={type} onClick={() => setFilter(filter === type ? 'all' : type)}>
-      {type === 'CODE' ? <Code2 size={17} /> : <FileText size={17} />}{type === 'CODE' ? 'Code files' : type}</button>)}</div>
+      {type === 'CODE' ? <Code2 size={17} /> : type === 'VIDEO' ? <Video size={17} /> : <FileText size={17} />}{type === 'CODE' ? 'Code files' : type === 'VIDEO' ? 'Videos' : type}</button>)}</div>
       <div className="sidebar-bottom">
       <div className="storage">
       <div className="storage-title">
       <span>Storage used</span>
-      <span>{fmtSize(workspaceFiles.reduce((a, f) => a + f.size, 0))}</span>
+      <span>{fmtSize(workspaceStats.bytes)}</span>
       </div>
       <small>No app storage quota · limited by server disk space</small>
       </div>
@@ -580,9 +657,9 @@ function App() {
       <div className="breadcrumbs">
       <span>Workspace</span>
       <ChevronRight size={14} />
-      <b>{folder === 'all' ? 'All files' : folder === 'starred' ? 'Starred' : current?.name || 'Folder'}</b>
+      <b>{folder === 'all' ? 'All files' : folder === 'starred' ? 'Starred' : folder === 'hidden' ? 'Hidden' : current?.name || 'Folder'}</b>
       </div>
-      <h1>{folder === 'all' ? 'All files' : folder === 'starred' ? 'Starred' : current?.name || 'Folder'}</h1>
+      <h1>{folder === 'all' ? 'All files' : folder === 'starred' ? 'Starred' : folder === 'hidden' ? 'Hidden' : current?.name || 'Folder'}</h1>
       <p>Manage and organize your digital workspace.</p>
       </div>
       <div className="head-actions">
@@ -620,7 +697,7 @@ function App() {
       <ArrowUpDown size={18} />
       </span>
       <div>
-      <b>{fmtSize(workspaceFiles.reduce((a, f) => a + f.size, 0))}</b>
+      <b>{fmtSize(workspaceStats.bytes)}</b>
       <small>Storage used</small>
       </div>
       </div>
@@ -638,11 +715,11 @@ function App() {
       <div className="section-head">
       <div>
       <div className="section-title-row">
-      {folder !== 'all' && folder !== 'starred' && <button className="folder-back" aria-label="Go back to parent folder" title="Back to parent folder" onClick={() => {
-        setFolder(current?.parent_id || 'all');
+      {folder !== 'all' && folder !== 'starred' && folder !== 'hidden' && <button className="folder-back" aria-label="Go back to parent folder" title="Back to parent folder" onClick={() => {
+        setFolder(hiddenMode ? current?.parent_id || 'hidden' : current?.parent_id || 'all');
         setMobileNav(false);
       }}><ArrowLeft size={15} /></button>}
-      <h2>{folder === 'all' ? 'Recent files' : 'Files'} <span className="count-pill">{visible.length}</span>
+      <h2>{folder === 'hidden' ? 'Hidden files' : 'Files'} <span className="count-pill">{visible.length}</span>
       </h2>
       </div>
       <p>Your files and folders, neatly organized.</p>
@@ -768,8 +845,8 @@ function App() {
       <Files size={28} />
       </div>
       </div>
-      <h3>{query ? 'No matching files' : 'Your workspace is ready'}</h3>
-      <p>{query ? 'Try another search or clear your filters.' : 'Upload your first file or create a folder to get started.'}</p>
+      <h3>{query ? 'No matching files' : folder === 'hidden' ? 'No hidden files' : hiddenMode ? 'This hidden folder is empty' : folder === 'all' ? 'Browse your folders' : 'Your workspace is ready'}</h3>
+      <p>{query ? 'Try another search or clear your filters.' : folder === 'hidden' ? 'Files you hide and folders you create will appear here.' : hiddenMode ? 'Add files or create a subfolder here.' : folder === 'all' ? 'Open a folder to see its files, or choose a file type to filter files here.' : 'Upload your first file or create a folder to get started.'}</p>
       <div>
       <button className="secondary" onClick={() => setModal('folder')}>
       <Plus size={16} />Create folder</button>
@@ -785,10 +862,10 @@ function App() {
       </div>
       </nav>}</section>
       <footer>Folio <span>·</span> Your personal file workspace</footer>
-      </main>{message && <div className={`toast ${message.type}`} role="status">{message.type === 'error' ? <AlertCircle size={17} /> : <CheckCircle2 size={17} />} {message.text}</div>}{modal === 'folder' && <FolderModal onClose={() => setModal('')} onCreate={onError(createFolder)} />}{modal === 'actions' && target && <ActionModal file={target} close={() => setModal('')} onPreview={() => {
+      </main>{message && <div className={`toast ${message.type}`} role="status">{message.type === 'error' ? <AlertCircle size={17} /> : <CheckCircle2 size={17} />} {message.text}</div>}{modal === 'folder' && <FolderModal onClose={() => setModal('')} onCreate={onError(createFolder)} />}{modal === 'hidden-password' && <HiddenPasswordModal configured={hiddenPasswordConfigured} onClose={() => setModal('')} onSubmit={onError(submitHiddenPassword)} />}{modal === 'actions' && target && <ActionModal file={target} close={() => setModal('')} onPreview={() => {
       setSelected(target);
       setModal('preview');
-    }} onRename={() => setModal('rename')} onMove={() => setModal('move')} onTags={() => setModal('tags')} onStar={() => onError(() => toggleStar(target))()} onDelete={() => onError(removeFile)(target)} token={token} />}{['rename', 'move', 'tags'].includes(modal) && target && <EditModal mode={modal} file={target} folders={folders} onClose={() => setModal('')} onSave={onError(body => editFile(target, body))} />}{modal === 'preview' && selected && <Preview file={selected} token={token} close={() => setModal('')} onActions={() => {
+    }} onRename={() => setModal('rename')} onMove={() => setModal('move')} onTags={() => setModal('tags')} onStar={() => onError(() => toggleStar(target))()} onToggleHidden={() => onError(() => toggleHidden(target))()} onDelete={() => onError(removeFile)(target)} token={token} />}{['rename', 'move', 'tags'].includes(modal) && target && <EditModal mode={modal} file={target} folders={hiddenMode ? hiddenFolders : folders} onClose={() => setModal('')} onSave={onError(body => editFile(target, body))} />}{modal === 'preview' && selected && <Preview file={selected} token={token} close={() => setModal('')} onActions={() => {
       setTarget(selected);
       setModal('actions');
     }} onSaveContent={content => saveFileContent(selected, content)} />}</div>;
@@ -840,6 +917,33 @@ function FolderModal({
       </form>
       </Dialog>;
 }
+function HiddenPasswordModal({ configured, onClose, onSubmit }) {
+  const [password, setPassword] = useState('');
+  const [confirmation, setConfirmation] = useState('');
+  const [error, setError] = useState('');
+  return <Dialog title={configured ? 'Unlock Hidden' : 'Create a Hidden password'} close={onClose}>
+      <p className="modal-copy">{configured ? 'Enter your Hidden password to view protected files.' : 'Choose a password of at least 8 characters. Folio stores a salted password hash.'}</p>
+      <form className="hidden-password-form" onSubmit={event => {
+        event.preventDefault();
+        if (!configured && password !== confirmation) {
+          setError('The passwords do not match.');
+          return;
+        }
+        setError('');
+        onSubmit(password);
+      }}>
+      <label htmlFor="hidden-password">Password</label>
+      <input id="hidden-password" type="password" autoFocus autoComplete={configured ? 'current-password' : 'new-password'} minLength={configured ? undefined : 8} maxLength={256} required value={password} onChange={event => setPassword(event.target.value)} />
+      {!configured && <><label htmlFor="hidden-password-confirm">Confirm password</label>
+      <input id="hidden-password-confirm" type="password" autoComplete="new-password" minLength={8} maxLength={256} required value={confirmation} onChange={event => setConfirmation(event.target.value)} /></>}
+      {error && <p className="hidden-password-error" role="alert">{error}</p>}
+      <div className="modal-buttons">
+      <button type="button" className="secondary" onClick={onClose}>Cancel</button>
+      <button className="primary">{configured ? 'Unlock' : 'Set password'}</button>
+      </div>
+      </form>
+      </Dialog>;
+}
 function ActionModal({
   file,
   close,
@@ -848,6 +952,7 @@ function ActionModal({
   onMove,
   onTags,
   onStar,
+  onToggleHidden,
   onDelete
 }) {
   return <Dialog title="File actions" close={close}>
@@ -859,6 +964,8 @@ function ActionModal({
       <Download size={17} />Download</a>
       <button onClick={onStar}>
       <Tag size={17} />{file.tags.includes('starred') ? 'Remove from Starred' : 'Add to Starred'}</button>
+      <button onClick={onToggleHidden}>
+      {file.hidden ? <Eye size={17} /> : <EyeOff size={17} />}{file.hidden ? 'Unhide file' : 'Hide file'}</button>
       <button onClick={onRename}>
       <Pencil size={17} />Rename</button>
       <button onClick={onMove}>
@@ -959,7 +1066,7 @@ function Preview({
       </button>
       </div>
       </div>
-      <div className="preview-body">{['PNG', 'JPG', 'JPEG', 'GIF', 'WEBP', 'SVG'].includes(e) ? <img src={url} alt={file.name} /> : e === 'PDF' ? <iframe src={url} title={file.name} /> : ['TXT', 'MD', 'CSV'].includes(e) || sourceCodeTypeSet.has(e) ? <TextPreview url={url} file={file} onSave={onSaveContent} /> : ['DOC', 'DOCX', 'PPT', 'PPTX', 'XLS', 'XLSX'].includes(e) ? <OfficeFilePreview file={file} /> : <div className="unsupported">
+      <div className="preview-body">{['PNG', 'JPG', 'JPEG', 'GIF', 'WEBP', 'SVG'].includes(e) ? <img src={url} alt={file.name} /> : videoFileTypes.has(e) ? <video src={url} controls playsInline preload="metadata" aria-label={file.name} /> : e === 'PDF' ? <iframe src={url} title={file.name} /> : ['TXT', 'MD', 'CSV'].includes(e) || sourceCodeTypeSet.has(e) ? <TextPreview url={url} file={file} onSave={onSaveContent} /> : ['DOC', 'DOCX', 'PPT', 'PPTX', 'XLS', 'XLSX'].includes(e) ? <OfficeFilePreview file={file} /> : <div className="unsupported">
       <div className={`file-art ${e.toLowerCase()} ${sourceCodeTypeSet.has(e) ? 'source-code' : ''}`}>{React.createElement(iconFor(file.name), {
               size: 35
             })}<span>{e}</span>

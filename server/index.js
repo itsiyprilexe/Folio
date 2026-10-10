@@ -3,6 +3,7 @@ import express from 'express';
 import multer from 'multer';
 import Database from 'better-sqlite3';
 import crypto from 'node:crypto';
+import { promisify } from 'node:util';
 import fs from 'node:fs';
 import path from 'node:path';
 import { inflateRawSync } from 'node:zlib';
@@ -17,13 +18,19 @@ fs.mkdirSync(storageDirectory, {
   recursive: true
 });
 const database = new Database(path.join(dataDirectory, 'folio.sqlite'));
+const scrypt = promisify(crypto.scrypt);
 database.pragma('journal_mode = WAL');
 database.pragma('foreign_keys = ON');
 database.exec(`
+  CREATE TABLE IF NOT EXISTS app_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
   CREATE TABLE IF NOT EXISTS folders (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     parent_id TEXT REFERENCES folders(id) ON DELETE SET NULL,
+    hidden INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL
   );
   CREATE TABLE IF NOT EXISTS files (
@@ -35,12 +42,19 @@ database.exec(`
     folder_id TEXT REFERENCES folders(id) ON DELETE SET NULL,
     tags TEXT NOT NULL DEFAULT '[]',
     search_text TEXT NOT NULL DEFAULT '',
+    hidden INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
     modified_at TEXT NOT NULL
   );
 `);
 if (!database.prepare('PRAGMA table_info(files)').all().some(column => column.name === 'search_text')) {
   database.exec("ALTER TABLE files ADD COLUMN search_text TEXT NOT NULL DEFAULT ''");
+}
+if (!database.prepare('PRAGMA table_info(files)').all().some(column => column.name === 'hidden')) {
+  database.exec('ALTER TABLE files ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0');
+}
+if (!database.prepare('PRAGMA table_info(folders)').all().some(column => column.name === 'hidden')) {
+  database.exec('ALTER TABLE folders ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0');
 }
 const app = express();
 app.disable('x-powered-by');
@@ -64,6 +78,51 @@ function cookieValue(request, name) {
   } catch {
     return '';
   }
+}
+const hiddenSessions = new Map();
+const hiddenLoginAttempts = new Map();
+const hiddenSessionCookie = (value, maxAge = 60 * 60 * 8) => {
+  const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
+  return `folio_hidden_session=${encodeURIComponent(value)}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${maxAge}${secure}`;
+};
+function hasHiddenAccess(request) {
+  const id = cookieValue(request, 'folio_hidden_session');
+  const expiresAt = hiddenSessions.get(id);
+  if (!id || !expiresAt) return false;
+  if (expiresAt <= Date.now()) {
+    hiddenSessions.delete(id);
+    return false;
+  }
+  return true;
+}
+function requireHiddenAccess(request, response) {
+  if (hasHiddenAccess(request)) return true;
+  response.status(423).json({ error: 'Unlock Hidden with your password to access this file.' });
+  return false;
+}
+function storedHiddenPassword() {
+  const setting = database.prepare('SELECT value FROM app_settings WHERE key = ?').get('hidden_password');
+  return setting ? JSON.parse(setting.value) : null;
+}
+function tooManyHiddenAttempts(request) {
+  const address = request.ip || request.socket.remoteAddress || 'unknown';
+  const recent = hiddenLoginAttempts.get(address);
+  if (!recent || Date.now() - recent.startedAt > 15 * 60 * 1000) {
+    hiddenLoginAttempts.set(address, { startedAt: Date.now(), count: 0 });
+    return false;
+  }
+  return recent.count >= 10;
+}
+function recordHiddenFailure(request) {
+  const address = request.ip || request.socket.remoteAddress || 'unknown';
+  const recent = hiddenLoginAttempts.get(address) || { startedAt: Date.now(), count: 0 };
+  recent.count += 1;
+  hiddenLoginAttempts.set(address, recent);
+}
+function createHiddenSession(response) {
+  const id = crypto.randomBytes(32).toString('hex');
+  hiddenSessions.set(id, Date.now() + 8 * 60 * 60 * 1000);
+  response.setHeader('Set-Cookie', hiddenSessionCookie(id));
 }
 function readZipEntries(buffer, wantedNames) {
   const entries = new Map();
@@ -221,6 +280,8 @@ app.use('/api', (request, response, next) => {
   }
   if (request.path === '/session' && request.method === 'DELETE') {
     response.setHeader('Set-Cookie', sessionCookie('', 0));
+    hiddenSessions.delete(cookieValue(request, 'folio_hidden_session'));
+    response.append('Set-Cookie', hiddenSessionCookie('', 0));
     return response.json({
       ok: true
     });
@@ -237,9 +298,48 @@ app.get('/api/session', (_request, response) => response.json({
   ok: true,
   requiresAuth: !authenticationDisabled
 }));
+app.get('/api/hidden/status', (request, response) => response.json({
+  configured: Boolean(storedHiddenPassword()),
+  unlocked: hasHiddenAccess(request)
+}));
+app.post('/api/hidden/setup', async (request, response) => {
+  if (storedHiddenPassword()) return response.status(409).json({ error: 'A Hidden password is already set. Enter it to unlock Hidden.' });
+  const password = typeof request.body.password === 'string' ? request.body.password : '';
+  if (password.length < 8 || password.length > 256) return response.status(400).json({ error: 'Use a password between 8 and 256 characters.' });
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = await scrypt(password, salt, 64);
+  database.prepare('INSERT INTO app_settings (key, value) VALUES (?, ?)').run('hidden_password', JSON.stringify({ salt, hash: hash.toString('hex') }));
+  createHiddenSession(response);
+  response.json({ ok: true });
+});
+app.post('/api/hidden/unlock', async (request, response) => {
+  if (tooManyHiddenAttempts(request)) return response.status(429).json({ error: 'Too many incorrect attempts. Try again in 15 minutes.' });
+  const saved = storedHiddenPassword();
+  if (!saved) return response.status(409).json({ error: 'Set up a Hidden password first.' });
+  const password = typeof request.body.password === 'string' ? request.body.password : '';
+  const expected = Buffer.from(saved.hash, 'hex');
+  const actual = await scrypt(password, saved.salt, expected.length);
+  if (actual.length !== expected.length || !crypto.timingSafeEqual(actual, expected)) {
+    recordHiddenFailure(request);
+    return response.status(401).json({ error: 'That password was not accepted.' });
+  }
+  hiddenLoginAttempts.delete(request.ip || request.socket.remoteAddress || 'unknown');
+  createHiddenSession(response);
+  response.json({ ok: true });
+});
+app.delete('/api/hidden/session', (request, response) => {
+  hiddenSessions.delete(cookieValue(request, 'folio_hidden_session'));
+  response.setHeader('Set-Cookie', hiddenSessionCookie('', 0));
+  response.json({ ok: true });
+});
+app.get('/api/storage', (_request, response) => {
+  const totals = database.prepare('SELECT COUNT(*) AS total, COALESCE(SUM(size), 0) AS bytes, SUM(CASE WHEN hidden = 1 THEN 1 ELSE 0 END) AS hiddenCount FROM files').get();
+  response.json({ ...totals, hiddenCount: totals.hiddenCount || 0 });
+});
 app.get('/api/files/:id/office-preview', (request, response) => {
   const file = database.prepare('SELECT * FROM files WHERE id = ?').get(request.params.id);
   if (!file) return response.status(404).json({ error: 'File not found.' });
+  if (file.hidden && !requireHiddenAccess(request, response)) return;
   const extension = path.extname(file.name).toLowerCase();
   if (!['.docx', '.xlsx', '.pptx'].includes(extension)) {
     return response.status(415).json({ error: 'Read-only preview is available for DOCX, XLSX, and PPTX files.' });
@@ -270,6 +370,9 @@ const supportedTypes = new Map([
   '.gif': 'image/gif',
   '.webp': 'image/webp',
   '.svg': 'image/svg+xml',
+  '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
+  '.mov': 'video/quicktime',
   '.txt': 'text/plain; charset=utf-8',
   '.md': 'text/markdown; charset=utf-8',
   '.csv': 'text/csv; charset=utf-8'
@@ -294,7 +397,7 @@ const upload = multer({
 const timestamp = () => new Date().toISOString();
 const fileQuery = `
   SELECT files.id, files.name, files.stored_name, files.mime, files.size, files.folder_id,
-         files.tags, files.created_at, files.modified_at, folders.name AS folder_name
+         files.tags, files.hidden, files.created_at, files.modified_at, folders.name AS folder_name
   FROM files LEFT JOIN folders ON folders.id = files.folder_id
 `;
 async function fileTypeIsValid(filePath, extension) {
@@ -313,6 +416,14 @@ async function fileTypeIsValid(filePath, extension) {
   if (extension === '.jpg' || extension === '.jpeg') return startsWith(0xff, 0xd8, 0xff);
   if (extension === '.gif') return ['GIF87a', 'GIF89a'].includes(bytes.subarray(0, 6).toString('ascii'));
   if (extension === '.webp') return bytes.subarray(0, 4).toString('ascii') === 'RIFF' && bytes.subarray(8, 12).toString('ascii') === 'WEBP';
+  if (extension === '.webm') return startsWith(0x1a, 0x45, 0xdf, 0xa3);
+  if (extension === '.mp4' || extension === '.mov') {
+    const isIsoBaseMedia = bytes.length >= 12 && bytes.subarray(4, 8).toString('ascii') === 'ftyp';
+    if (!isIsoBaseMedia) return false;
+    const brand = bytes.subarray(8, 12).toString('ascii');
+    const mp4Brands = new Set(['isom', 'iso2', 'iso3', 'iso4', 'iso5', 'iso6', 'mp41', 'mp42', 'avc1', 'M4V ', 'M4VH', 'M4VP', 'MSNV', 'F4V ', 'dash']);
+    return extension === '.mov' ? brand === 'qt  ' : mp4Brands.has(brand);
+  }
   if (['.doc', '.ppt', '.xls'].includes(extension)) return startsWith(0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1);
   if (['.docx', '.pptx', '.xlsx'].includes(extension)) return startsWith(0x50, 0x4b, 0x03, 0x04);
   if (extension === '.zip') return [[0x50, 0x4b, 0x03, 0x04], [0x50, 0x4b, 0x05, 0x06], [0x50, 0x4b, 0x07, 0x08]].some(signature => startsWith(...signature));
@@ -327,39 +438,48 @@ function cleanUploadedFiles(files = []) {
     force: true
   });
 }
-app.get('/api/folders', (_request, response) => {
-  const folders = database.prepare('SELECT * FROM folders ORDER BY name COLLATE NOCASE').all();
+app.get('/api/folders', (request, response) => {
+  const hiddenView = request.query.view === 'hidden';
+  if (hiddenView && !requireHiddenAccess(request, response)) return;
+  const folders = database.prepare('SELECT * FROM folders WHERE hidden = ? ORDER BY name COLLATE NOCASE').all(Number(hiddenView));
   response.json(folders);
 });
 app.post('/api/folders', (request, response) => {
   const name = String(request.body.name || '').trim();
   const parentId = request.body.parentId || null;
+  const hidden = request.body.hidden === true;
+  if (hidden && !requireHiddenAccess(request, response)) return;
   if (!name || name.length > 80) return response.status(400).json({
     error: 'Folder name must be 1–80 characters.'
   });
-  if (parentId && !database.prepare('SELECT id FROM folders WHERE id = ?').get(parentId)) {
+  const parent = parentId ? database.prepare('SELECT id, hidden FROM folders WHERE id = ?').get(parentId) : null;
+  if (parentId && !parent) {
     return response.status(400).json({
       error: 'The parent folder was not found.'
     });
   }
+  if (parent && Boolean(parent.hidden) !== hidden) return response.status(400).json({ error: 'Hidden folders must stay inside Hidden, and regular folders must stay in the workspace.' });
   const id = crypto.randomUUID();
-  database.prepare('INSERT INTO folders (id, name, parent_id, created_at) VALUES (?, ?, ?, ?)').run(id, name, parentId, timestamp());
+  database.prepare('INSERT INTO folders (id, name, parent_id, hidden, created_at) VALUES (?, ?, ?, ?, ?)').run(id, name, parentId, Number(hidden), timestamp());
   response.status(201).json(database.prepare('SELECT * FROM folders WHERE id = ?').get(id));
 });
 app.patch('/api/folders/:id', (request, response) => {
+  const folder = database.prepare('SELECT * FROM folders WHERE id = ?').get(request.params.id);
+  if (!folder) return response.status(404).json({ error: 'Folder not found.' });
+  if (folder.hidden && !requireHiddenAccess(request, response)) return;
   const name = String(request.body.name || '').trim();
   if (!name || name.length > 80) return response.status(400).json({
     error: 'Folder name must be 1–80 characters.'
   });
-  const result = database.prepare('UPDATE folders SET name = ? WHERE id = ?').run(name, request.params.id);
-  if (!result.changes) return response.status(404).json({
-    error: 'Folder not found.'
-  });
+  database.prepare('UPDATE folders SET name = ? WHERE id = ?').run(name, request.params.id);
   response.json({
     ok: true
   });
 });
 app.delete('/api/folders/:id', (request, response) => {
+  const folder = database.prepare('SELECT * FROM folders WHERE id = ?').get(request.params.id);
+  if (!folder) return response.status(404).json({ error: 'Folder not found.' });
+  if (folder.hidden && !requireHiddenAccess(request, response)) return;
   const result = database.prepare('DELETE FROM folders WHERE id = ?').run(request.params.id);
   if (!result.changes) return response.status(404).json({
     error: 'Folder not found.'
@@ -372,6 +492,9 @@ app.get('/api/files', (request, response) => {
   const conditions = [];
   const values = [];
   const folderId = request.query.folder;
+  const hiddenView = request.query.view === 'hidden';
+  if (hiddenView && !requireHiddenAccess(request, response)) return;
+  conditions.push(`files.hidden = ${hiddenView ? 1 : 0}`);
   const query = String(request.query.q || '').trim().slice(0, 200);
   if (folderId === 'root') conditions.push('files.folder_id IS NULL');else if (folderId) {
     conditions.push('files.folder_id = ?');
@@ -400,11 +523,17 @@ app.post('/api/files', (request, response, next) => {
     if (!files.length) return response.status(400).json({
       error: 'Choose at least one file.'
     });
-    if (folderId && !database.prepare('SELECT id FROM folders WHERE id = ?').get(folderId)) {
+    const destinationFolder = folderId ? database.prepare('SELECT id, hidden FROM folders WHERE id = ?').get(folderId) : null;
+    if (folderId && !destinationFolder) {
       cleanUploadedFiles(files);
       return response.status(400).json({
         error: 'The destination folder was not found.'
       });
+    }
+    const hidden = request.body.hidden === 'true' || Boolean(destinationFolder?.hidden);
+    if (hidden && !requireHiddenAccess(request, response)) {
+      cleanUploadedFiles(files);
+      return;
     }
     let invalid;
     try {
@@ -430,9 +559,9 @@ app.post('/api/files', (request, response, next) => {
       const extension = path.extname(name).toLowerCase();
       const modifiedAt = timestamp();
       database.prepare(`
-        INSERT INTO files (id, name, stored_name, mime, size, folder_id, tags, search_text, created_at, modified_at)
-        VALUES (?, ?, ?, ?, ?, ?, '[]', ?, ?, ?)
-      `).run(id, name, file.filename, supportedTypes.get(extension), file.size, folderId, textFileExtensions.has(extension) ? fs.readFileSync(file.path, 'utf8').slice(0, 1_000_000) : '', modifiedAt, modifiedAt);
+        INSERT INTO files (id, name, stored_name, mime, size, folder_id, tags, search_text, hidden, created_at, modified_at)
+        VALUES (?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?)
+      `).run(id, name, file.filename, supportedTypes.get(extension), file.size, folderId, textFileExtensions.has(extension) ? fs.readFileSync(file.path, 'utf8').slice(0, 1_000_000) : '', Number(hidden), modifiedAt, modifiedAt);
       return {
         id,
         name,
@@ -454,6 +583,7 @@ app.get('/api/files/:id', (request, response) => {
   if (!file) return response.status(404).json({
     error: 'File not found.'
   });
+  if (file.hidden && !requireHiddenAccess(request, response)) return;
   response.json({
     ...file,
     tags: JSON.parse(file.tags)
@@ -464,14 +594,55 @@ app.get('/api/files/:id/content', (request, response, next) => {
   if (!file) return response.status(404).json({
     error: 'File not found.'
   });
+  if (file.hidden && !requireHiddenAccess(request, response)) return;
   const filePath = path.resolve(storageDirectory, file.stored_name);
   if (!filePath.startsWith(`${storageDirectory}${path.sep}`)) return response.status(400).end();
   response.setHeader('X-Content-Type-Options', 'nosniff');
   const extension = path.extname(file.name).toLowerCase();
-  response.setHeader('Content-Type', textFileExtensions.has(extension) ? 'text/plain; charset=utf-8' : file.mime);
+  // Use the validated filename extension for known formats. Older uploads may
+  // have a generic or incorrect MIME value stored in their metadata, which can
+  // prevent browsers from rendering otherwise valid JPG/PNG previews.
+  const contentType = textFileExtensions.has(extension)
+    ? 'text/plain; charset=utf-8'
+    : supportedTypes.get(extension) || file.mime || 'application/octet-stream';
+  response.setHeader('Content-Type', contentType);
   const forceDownload = request.query.download || extension === '.svg' || sourceCodeExtensions.has(extension);
   const disposition = forceDownload ? 'attachment' : 'inline';
   response.setHeader('Content-Disposition', `${disposition}; filename*=UTF-8''${encodeURIComponent(file.name)}`);
+  const isVideo = ['.mp4', '.webm', '.mov'].includes(extension);
+  if (!isVideo) {
+    const stream = fs.createReadStream(filePath);
+    stream.on('error', next);
+    return stream.pipe(response);
+  }
+  let fileSize;
+  try {
+    fileSize = fs.statSync(filePath).size;
+  } catch (error) {
+    return next(error);
+  }
+  response.setHeader('Accept-Ranges', 'bytes');
+  const range = forceDownload ? null : request.headers.range;
+  if (range) {
+    const match = /^bytes=(\d*)-(\d*)$/.exec(range);
+    if (!match || (!match[1] && !match[2])) {
+      response.setHeader('Content-Range', `bytes */${fileSize}`);
+      return response.status(416).end();
+    }
+    const start = match[1] ? Number(match[1]) : Math.max(fileSize - Number(match[2]), 0);
+    const end = match[2] && match[1] ? Math.min(Number(match[2]), fileSize - 1) : fileSize - 1;
+    if (start >= fileSize || start > end) {
+      response.setHeader('Content-Range', `bytes */${fileSize}`);
+      return response.status(416).end();
+    }
+    response.status(206);
+    response.setHeader('Content-Range', `bytes ${start}-${end}/${fileSize}`);
+    response.setHeader('Content-Length', end - start + 1);
+    const stream = fs.createReadStream(filePath, { start, end });
+    stream.on('error', next);
+    return stream.pipe(response);
+  }
+  response.setHeader('Content-Length', fileSize);
   const stream = fs.createReadStream(filePath);
   stream.on('error', next);
   stream.pipe(response);
@@ -479,6 +650,7 @@ app.get('/api/files/:id/content', (request, response, next) => {
 app.put('/api/files/:id/content', (request, response) => {
   const file = database.prepare('SELECT * FROM files WHERE id = ?').get(request.params.id);
   if (!file) return response.status(404).json({ error: 'File not found.' });
+  if (file.hidden && !requireHiddenAccess(request, response)) return;
   const extension = path.extname(file.name).toLowerCase();
   if (!textFileExtensions.has(extension)) {
     return response.status(415).json({ error: 'In-app editing is only available for supported text and source-code files.' });
@@ -508,9 +680,11 @@ app.patch('/api/files/:id', (request, response) => {
   if (!file) return response.status(404).json({
     error: 'File not found.'
   });
+  if (file.hidden && !requireHiddenAccess(request, response)) return;
   const name = request.body.name === undefined ? file.name : String(request.body.name).trim();
   const folderId = request.body.folderId === undefined ? file.folder_id : request.body.folderId || null;
   const tags = request.body.tags === undefined ? JSON.parse(file.tags) : request.body.tags;
+  const hidden = request.body.hidden === undefined ? Boolean(file.hidden) : request.body.hidden;
   if (!name || name.length > 255 || /[\\/]/.test(name) || name === '.' || name === '..') {
     return response.status(400).json({
       error: 'Use a valid file name up to 255 characters.'
@@ -521,18 +695,24 @@ app.patch('/api/files/:id', (request, response) => {
       error: 'Keep the original file extension when renaming this file.'
     });
   }
-  if (folderId && !database.prepare('SELECT id FROM folders WHERE id = ?').get(folderId)) {
+  const destinationFolder = folderId ? database.prepare('SELECT id, hidden FROM folders WHERE id = ?').get(folderId) : null;
+  if (folderId && !destinationFolder) {
     return response.status(400).json({
       error: 'The destination folder was not found.'
     });
   }
+  if (destinationFolder?.hidden && !requireHiddenAccess(request, response)) return;
   if (!Array.isArray(tags) || tags.length > 20 || tags.some(tag => typeof tag !== 'string' || tag.trim().length > 30)) {
     return response.status(400).json({
       error: 'Use up to 20 tags, with no more than 30 characters each.'
     });
   }
+  if (typeof hidden !== 'boolean') {
+    return response.status(400).json({ error: 'Hidden must be true or false.' });
+  }
   const cleanTags = [...new Set(tags.map(tag => tag.trim()).filter(Boolean))];
-  database.prepare('UPDATE files SET name = ?, folder_id = ?, tags = ?, modified_at = ? WHERE id = ?').run(name, folderId, JSON.stringify(cleanTags), timestamp(), file.id);
+  const remainHidden = hidden || Boolean(destinationFolder?.hidden);
+  database.prepare('UPDATE files SET name = ?, folder_id = ?, tags = ?, hidden = ?, modified_at = ? WHERE id = ?').run(name, folderId, JSON.stringify(cleanTags), Number(remainHidden), timestamp(), file.id);
   response.json({
     ok: true
   });
@@ -542,6 +722,7 @@ app.delete('/api/files/:id', (request, response) => {
   if (!file) return response.status(404).json({
     error: 'File not found.'
   });
+  if (file.hidden && !requireHiddenAccess(request, response)) return;
   database.prepare('DELETE FROM files WHERE id = ?').run(file.id);
   const filePath = path.resolve(storageDirectory, file.stored_name);
   if (filePath.startsWith(`${storageDirectory}${path.sep}`)) fs.rmSync(filePath, {
