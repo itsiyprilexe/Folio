@@ -113,8 +113,33 @@ function decodeXmlEntities(value) {
     });
 }
 function xmlText(xml) {
-  return [...xml.matchAll(/<(?:[\w.-]+:)?t(?:\s[^>]*)?>([\s\S]*?)<\/(?:[\w.-]+:)?t\s*>/g)]
-    .map((match) => decodeXmlEntities(match[1].replace(/<[^>]+>/g, ''))).join('');
+  return [...xml.matchAll(/<(?:[\w.-]+:)?(t|tab|br|cr)\b([^>]*)>([\s\S]*?)<\/(?:[\w.-]+:)?\1\s*>|<(?:[\w.-]+:)?(tab|br|cr)\b[^>]*\/>/g)]
+    .map((match) => {
+      const tag = match[1] || match[4];
+      if (tag === 'tab') return '\t';
+      if (tag === 'br' || tag === 'cr') return '\n';
+      return decodeXmlEntities((match[3] || '').replace(/<[^>]+>/g, ''));
+    }).join('');
+}
+function docxBlocks(xml) {
+  const body = xml.match(/<(?:[\w.-]+:)?body\b[^>]*>([\s\S]*?)<\/(?:[\w.-]+:)?body\s*>/)?.[1] || xml;
+  const blocks = [];
+  const blockPattern = /<(?:[\w.-]+:)?(p|tbl)\b[^>]*>[\s\S]*?<\/(?:[\w.-]+:)?\1\s*>/g;
+  for (const match of body.matchAll(blockPattern)) {
+    const blockXml = match[0];
+    if (match[1] === 'p') {
+      const text = xmlText(blockXml);
+      if (text.trim()) blocks.push({ type: 'paragraph', text });
+      continue;
+    }
+    const rows = [...blockXml.matchAll(/<(?:[\w.-]+:)?tr\b[^>]*>([\s\S]*?)<\/(?:[\w.-]+:)?tr\s*>/g)].map((row) =>
+      [...row[1].matchAll(/<(?:[\w.-]+:)?tc\b[^>]*>([\s\S]*?)<\/(?:[\w.-]+:)?tc\s*>/g)].map((cell) =>
+        [...cell[1].matchAll(/<(?:[\w.-]+:)?p\b[^>]*>[\s\S]*?<\/(?:[\w.-]+:)?p\s*>/g)].map((paragraph) => xmlText(paragraph[0])).filter(Boolean).join('\n')
+      )
+    );
+    if (rows.length) blocks.push({ type: 'table', rows });
+  }
+  return blocks;
 }
 function officePreview(filePath, extension) {
   const fileBuffer = fs.readFileSync(filePath);
@@ -123,8 +148,9 @@ function officePreview(filePath, extension) {
     const entries = readZipEntries(fileBuffer, new Set(['word/document.xml']));
     const xml = entries.get('word/document.xml');
     if (!xml) throw new Error('Could not find document content in this file.');
-    const paragraphs = [...xml.matchAll(/<(?:\w+:)?p(?:\s[^>]*)?>([\s\S]*?)<\/(?:\w+:)?p\s*>/g)].map((match) => xmlText(match[1])).filter(Boolean);
-    return { kind: 'document', sections: [{ title: 'Document', text: paragraphs.join('\n\n') || 'This document has no readable text.' }] };
+    const blocks = docxBlocks(xml);
+    const text = blocks.map((block) => block.type === 'table' ? block.rows.map((row) => row.join('\t')).join('\n') : block.text).join('\n\n');
+    return { kind: 'document', sections: [{ title: 'Document', text: text || 'This document has no readable text.', blocks }] };
   }
   if (extension === '.pptx') {
     const slideNames = new Set([...fileBuffer.toString('latin1').matchAll(/ppt\/slides\/slide\d+\.xml/g)].map((match) => match[0]));

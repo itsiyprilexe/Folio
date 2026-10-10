@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Folder, FolderOpen, Files, Image as ImageIcon, FileText, Presentation, Table2, Upload, Plus, Search, Grid2X2, List, MoreHorizontal, Download, Eye, Pencil, Trash2, ChevronRight, ChevronLeft, ArrowUpDown, Tag, X, File, CheckCircle2, AlertCircle, CloudUpload, Menu, ArrowLeftRight, LockKeyhole, Command } from 'lucide-react';
+import { Folder, FolderOpen, Files, Image as ImageIcon, FileText, Presentation, Table2, Upload, Plus, Search, Grid2X2, List, MoreHorizontal, Download, Eye, Pencil, Trash2, ChevronRight, ChevronLeft, ChevronDown, ArrowUpDown, Tag, X, File, CheckCircle2, AlertCircle, CloudUpload, Menu, ArrowLeftRight, LockKeyhole, Command } from 'lucide-react';
 import './style.css';
 const fmtSize = n => n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1048576).toFixed(1)} MB`;
 const date = x => new Date(x).toLocaleDateString(undefined, {
@@ -36,6 +36,7 @@ function App() {
     [mobileNav, setMobileNav] = useState(false),
     [filter, setFilter] = useState('all'),
     [page, setPage] = useState(0);
+  const [collapsedFolders, setCollapsedFolders] = useState(() => new Set());
   const input = useRef();
   const folderInput = useRef();
   const searchInput = useRef();
@@ -426,14 +427,16 @@ function App() {
       (children.get(parentId) || []).sort((a, b) => a.name.localeCompare(b.name)).forEach(item => {
         ordered.push({
           folder: item,
-          depth
+          depth,
+          hasChildren: (children.get(item.id) || []).length > 0,
+          expanded: !collapsedFolders.has(item.id)
         });
-        visit(item.id, depth + 1);
+        if (!collapsedFolders.has(item.id)) visit(item.id, depth + 1);
       });
     };
     visit('', 0);
     return ordered;
-  }, [folders]);
+  }, [folders, collapsedFolders]);
   if (!authorized) return <div className="login">
       <div className="login-card">
       <div className="brand">
@@ -509,10 +512,18 @@ function App() {
       <button className={`nav-item ${folders.length === 0 ? 'no-folder' : ''}`} onClick={() => setModal('folder')}>
       <Folder size={17} />New folder</button>{folderTree.map(({
             folder: f,
-            depth
+            depth,
+            hasChildren,
+            expanded
           }) => <div className="folder-row" key={f.id} style={{
             paddingLeft: `${depth * 13}px`
           }}>
+      {hasChildren ? <button className="folder-expand" aria-label={`${expanded ? 'Collapse' : 'Expand'} ${f.name}`} aria-expanded={expanded} title={`${expanded ? 'Collapse' : 'Expand'} subfolders`} onClick={() => setCollapsedFolders(current => {
+              const next = new Set(current);
+              if (next.has(f.id)) next.delete(f.id);
+              else next.add(f.id);
+              return next;
+            })}>{expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</button> : <span className="folder-expand-placeholder" aria-hidden="true" />}
       <button className={`nav-item ${folder === f.id ? 'active' : ''}`} onClick={() => setFolder(f.id)}>
       <Folder size={17} />
       <span>{f.name}</span>
@@ -929,7 +940,14 @@ function OfficeFilePreview({ file }) {
       {loading && <p className="office-readonly-message" role="status">Loading file content…</p>}
       {!loading && error && <div className="office-readonly-message" role="alert"><strong>Preview unavailable</strong><span>{error}</span></div>}
       {!loading && !error && !supportsReadOnly && <div className="office-readonly-message"><strong>Read-only content preview isn’t available for this older Office format.</strong><span>Download this file to open it in a compatible app. PDF versions can be previewed directly in Folio.</span></div>}
-      {!loading && preview?.sections.map((section, index) => <section className={`office-readonly-section ${preview.kind}`} key={`${section.title}-${index}`}><h3>{section.title}</h3><pre>{section.text}</pre></section>)}
+      {!loading && preview?.sections.map((section, index) => <section className={`office-readonly-section ${preview.kind}`} key={`${section.title}-${index}`}>
+        <h3>{section.title}</h3>
+        {preview.kind === 'document' && section.blocks?.length ? <div className="docx-content">
+          {section.blocks.map((block, blockIndex) => block.type === 'table' ? <div className="docx-table-scroll" key={blockIndex}><table><tbody>
+            {block.rows.map((row, rowIndex) => <tr key={rowIndex}>{row.map((cell, cellIndex) => <td key={cellIndex}>{cell || '\u00a0'}</td>)}</tr>)}
+          </tbody></table></div> : <p key={blockIndex}>{block.text}</p>)}
+        </div> : <pre>{section.text}</pre>}
+      </section>)}
     </div>
   </div>;
 }

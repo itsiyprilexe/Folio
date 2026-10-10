@@ -240,6 +240,34 @@ button {
   align-items: center
 }
 
+.folder-expand,
+.folder-expand-placeholder {
+  width: 20px;
+  height: 24px;
+  flex: 0 0 20px
+}
+
+.folder-expand {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #9295a2;
+  cursor: pointer
+}
+
+.folder-expand:hover {
+  background: #f1eff7;
+  color: #6249cf
+}
+
+.folder-expand:focus-visible {
+  outline: 2px solid #745bdc;
+  outline-offset: 1px
+}
+
 .folder-row .nav-item {
   flex: 1;
   min-width: 0
@@ -1274,6 +1302,41 @@ footer span {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   font: 14px/1.7 'DM Sans', sans-serif
+}
+
+.docx-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  color: #343342;
+  font: 14px/1.7 'DM Sans', sans-serif;
+  overflow-wrap: anywhere
+}
+
+.docx-content p {
+  margin: 0;
+  white-space: pre-wrap
+}
+
+.docx-table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid #e5e6ec;
+  border-radius: 6px
+}
+
+.docx-content table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff
+}
+
+.docx-content td {
+  min-width: 90px;
+  padding: 8px 10px;
+  border: 1px solid #e5e6ec;
+  vertical-align: top;
+  white-space: pre-wrap
 }
 
 .office-readonly-section.presentation {
