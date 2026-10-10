@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Folder, FolderOpen, Files, Image as ImageIcon, FileText, Presentation, Table2, Upload, Plus, Search, Grid2X2, List, MoreHorizontal, Download, Eye, Pencil, Trash2, ChevronRight, ChevronLeft, ChevronDown, ArrowUpDown, Tag, X, File, CheckCircle2, AlertCircle, CloudUpload, Menu, ArrowLeftRight, LockKeyhole, Command } from 'lucide-react';
+import { Folder, FolderOpen, Files, Image as ImageIcon, FileText, Presentation, Table2, Archive, Upload, Plus, Search, Grid2X2, List, MoreHorizontal, Download, Eye, Pencil, Trash2, ChevronRight, ChevronLeft, ChevronDown, ArrowLeft, ArrowUpDown, Tag, X, File, CheckCircle2, AlertCircle, CloudUpload, Menu, ArrowLeftRight, LockKeyhole, Command } from 'lucide-react';
 import './style.css';
 const fmtSize = n => n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1048576).toFixed(1)} MB`;
 const date = x => new Date(x).toLocaleDateString(undefined, {
@@ -9,10 +9,10 @@ const date = x => new Date(x).toLocaleDateString(undefined, {
   year: 'numeric'
 });
 const ext = x => (x.split('.').pop() || 'FILE').toUpperCase();
-const fileTypes = ['PDF', 'DOC', 'DOCX', 'PPT', 'PPTX', 'XLS', 'XLSX', 'PNG', 'JPG', 'JPEG', 'GIF', 'WEBP', 'SVG', 'TXT', 'MD', 'CSV'];
+const fileTypes = ['PDF', 'DOC', 'DOCX', 'PPT', 'PPTX', 'XLS', 'XLSX', 'ZIP', 'PNG', 'JPG', 'JPEG', 'GIF', 'WEBP', 'SVG', 'TXT', 'MD', 'CSV'];
 const iconFor = n => {
   const e = ext(n);
-  return e === 'PDF' || ['DOC', 'DOCX', 'TXT', 'MD'].includes(e) ? FileText : ['PPT', 'PPTX'].includes(e) ? Presentation : ['XLS', 'XLSX', 'CSV'].includes(e) ? Table2 : ['PNG', 'JPG', 'JPEG', 'GIF', 'WEBP'].includes(e) ? ImageIcon : File;
+  return e === 'ZIP' ? Archive : e === 'PDF' || ['DOC', 'DOCX', 'TXT', 'MD'].includes(e) ? FileText : ['PPT', 'PPTX'].includes(e) ? Presentation : ['XLS', 'XLSX', 'CSV'].includes(e) ? Table2 : ['PNG', 'JPG', 'JPEG', 'GIF', 'WEBP'].includes(e) ? ImageIcon : File;
 };
 function App() {
   const [token, setToken] = useState(''),
@@ -113,6 +113,15 @@ function App() {
     a.sort((x, y) => sort === 'name' ? x.name.localeCompare(y.name) : sort === 'type' ? ext(x.name).localeCompare(ext(y.name)) : sort === 'size' ? y.size - x.size : new Date(y[sort]) - new Date(x[sort]));
     return a;
   }, [files, filter, sizeFilter, dateFilter, sort]);
+  const childFolders = useMemo(() => {
+    if (folder === 'starred') return [];
+    const parentId = folder === 'all' ? null : folder;
+    const normalizedQuery = query.trim().toLocaleLowerCase();
+    return folders
+      .filter(item => (item.parent_id || null) === parentId && (!normalizedQuery || item.name.toLocaleLowerCase().includes(normalizedQuery)))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [folders, folder, query]);
+  const folderItemCount = item => workspaceFiles.filter(file => file.folder_id === item.id).length + folders.filter(child => child.parent_id === item.id).length;
   const pageSize = 12;
   const pageCount = Math.max(1, Math.ceil(visible.length / pageSize));
   const currentPage = Math.min(page, pageCount - 1);
@@ -617,8 +626,14 @@ function App() {
       <section className="files-section">
       <div className="section-head">
       <div>
+      <div className="section-title-row">
+      {folder !== 'all' && folder !== 'starred' && <button className="folder-back" aria-label="Go back to parent folder" title="Back to parent folder" onClick={() => {
+        setFolder(current?.parent_id || 'all');
+        setMobileNav(false);
+      }}><ArrowLeft size={15} /></button>}
       <h2>{folder === 'all' ? 'Recent files' : 'Files'} <span className="count-pill">{visible.length}</span>
       </h2>
+      </div>
       <p>Your files and folders, neatly organized.</p>
       </div>
       <div className="list-controls">
@@ -669,6 +684,26 @@ function App() {
               width: `${progress}%`
             }} />
       </div>
+      </div>}{childFolders.length > 0 && <div className="subfolder-section">
+      <div className="subfolder-heading"><h3>Folders</h3><span className="count-pill">{childFolders.length}</span></div>
+      {view === 'grid' ? <div className="subfolder-grid">{childFolders.map(item => <button className="subfolder-card" key={item.id} onClick={() => {
+        setFolder(item.id);
+        setMobileNav(false);
+      }} aria-label={`Open folder ${item.name}`}>
+        <span className="subfolder-icon"><FolderOpen size={21} /></span>
+        <span className="subfolder-details"><strong title={item.name}>{item.name}</strong><small>{folderItemCount(item)} items</small></span>
+        <ChevronRight className="subfolder-chevron" size={16} />
+      </button>)}</div> : <div className="table-wrap folder-table-wrap"><table>
+        <thead><tr><th>Name</th><th>Type</th><th>Items</th></tr></thead>
+        <tbody>{childFolders.map(item => <tr key={item.id}>
+          <td><button className="table-name" onClick={() => {
+            setFolder(item.id);
+            setMobileNav(false);
+          }}><FolderOpen size={18} />{item.name}</button></td>
+          <td><span className="type-badge">Folder</span></td>
+          <td>{folderItemCount(item)}</td>
+        </tr>)}</tbody>
+      </table></div>}
       </div>}{visible.length ? view === 'grid' ? <div className="file-grid">{pageFiles.map(f => <FileCard key={f.id} f={f} onSelect={() => {
             setSelected(f);
             setModal('preview');
@@ -713,7 +748,7 @@ function App() {
       </td>
       </tr>)}</tbody>
       </table>
-      </div> : <div className="empty">
+      </div> : childFolders.length ? null : <div className="empty">
       <div className="empty-art">
       <div className="empty-back">
       <FolderOpen size={34} />
@@ -880,6 +915,13 @@ function Preview({
   onActions,
   onSaveContent
 }) {
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, []);
   const e = ext(file.name),
     url = `/api/files/${file.id}/content`;
   return <div className="preview-overlay" onMouseDown={e => {

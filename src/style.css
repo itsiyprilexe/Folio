@@ -398,6 +398,26 @@ button {
   margin-bottom: 9px
 }
 
+.folder-back {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  place-items: center;
+  margin: -5px 3px -5px 0;
+  padding: 0;
+  border: 1px solid #e9e7f0;
+  border-radius: 7px;
+  background: #fff;
+  color: #777987
+}
+
+.folder-back:hover {
+  border-color: #dcd7f1;
+  background: #f8f7fc;
+  color: #6249cf
+}
+
 .breadcrumbs b {
   font-weight: 500;
   color: #676b78
@@ -541,6 +561,16 @@ button {
   gap: 8px
 }
 
+.section-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px
+}
+
+.section-title-row .folder-back {
+  margin: 0
+}
+
 .count-pill {
   font: 600 10px 'DM Sans';
   color: #888b98;
@@ -597,6 +627,90 @@ button {
   display: grid;
   grid-template-columns: repeat(4,minmax(0,1fr));
   gap: 14px
+}
+
+.subfolder-section {
+  margin: 4px 0 22px
+}
+
+.subfolder-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px
+}
+
+.subfolder-heading h3 {
+  margin: 0;
+  color: #555765;
+  font: 600 12px Manrope,sans-serif
+}
+
+.subfolder-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill,minmax(min(100%,230px),1fr));
+  gap: 12px
+}
+
+.subfolder-card {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  min-width: 0;
+  padding: 13px;
+  border: 1px solid #ededf1;
+  border-radius: 8px;
+  background: #fff;
+  text-align: left;
+  transition: border-color .18s,box-shadow .18s
+}
+
+.subfolder-card:hover {
+  border-color: #dcd7f1;
+  box-shadow: 0 5px 18px #34225a0b
+}
+
+.subfolder-icon {
+  display: grid;
+  flex: 0 0 38px;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 9px;
+  background: #f2efff;
+  color: #745bdc
+}
+
+.subfolder-details {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0
+}
+
+.subfolder-details strong {
+  overflow: hidden;
+  color: #383747;
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap
+}
+
+.subfolder-details small {
+  color: #9295a2;
+  font-size: 10px
+}
+
+.subfolder-chevron {
+  flex: 0 0 auto;
+  color: #9698a4
+}
+
+.folder-table-wrap {
+  margin-bottom: 20px
 }
 
 .file-card {
@@ -1160,8 +1274,8 @@ footer span {
   min-height: 0;
   display: flex;
   justify-content: center;
-  align-items: center;
-  overflow: auto
+  align-items: stretch;
+  overflow: hidden
 }
 
 .preview-body>img {
@@ -1270,11 +1384,13 @@ footer span {
   min-width: 0;
   min-height: 0;
   overflow: auto;
+  overscroll-behavior: contain;
   box-sizing: border-box;
   padding: 18px
 }
 
 .office-readonly-section {
+  flex: 0 0 auto;
   width: min(850px, 100%);
   min-width: 0;
   box-sizing: border-box;
@@ -1381,6 +1497,12 @@ footer span {
 }
 
 .unsupported {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   text-align: center
 }
 

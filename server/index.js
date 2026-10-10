@@ -243,6 +243,7 @@ const supportedTypes = new Map(Object.entries({
   '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
   '.xls': 'application/vnd.ms-excel',
   '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  '.zip': 'application/zip',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
@@ -292,6 +293,7 @@ async function fileTypeIsValid(filePath, extension) {
   if (extension === '.webp') return bytes.subarray(0, 4).toString('ascii') === 'RIFF' && bytes.subarray(8, 12).toString('ascii') === 'WEBP';
   if (['.doc', '.ppt', '.xls'].includes(extension)) return startsWith(0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1);
   if (['.docx', '.pptx', '.xlsx'].includes(extension)) return startsWith(0x50, 0x4b, 0x03, 0x04);
+  if (extension === '.zip') return [[0x50, 0x4b, 0x03, 0x04], [0x50, 0x4b, 0x05, 0x06], [0x50, 0x4b, 0x07, 0x08]].some(signature => startsWith(...signature));
   if (extension === '.svg') return /<svg[\s>]/i.test(bytes.toString('utf8'));
   for await (const chunk of fs.createReadStream(filePath)) {
     if (chunk.includes(0)) return false;
