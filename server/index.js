@@ -235,7 +235,10 @@ app.get('/api/files/:id/office-preview', (request, response) => {
     response.status(422).json({ error: error.message || 'This file could not be previewed.' });
   }
 });
-const supportedTypes = new Map(Object.entries({
+const sourceCodeExtensions = new Set(['.js', '.mjs', '.cjs', '.jsx', '.ts', '.mts', '.cts', '.tsx', '.py', '.pyi', '.pyw', '.java', '.c', '.h', '.cc', '.cpp', '.cxx', '.hh', '.hpp', '.hxx', '.cs', '.csx', '.cshtml', '.razor', '.fs', '.fsi', '.fsx', '.vb', '.go', '.rs', '.php', '.rb', '.r', '.swift', '.kt', '.kts', '.dart', '.lua', '.pl', '.pm', '.ex', '.exs', '.hs', '.lhs', '.scala', '.sc', '.clj', '.cljc', '.cljs', '.edn', '.erl', '.hrl', '.sql', '.pgsql', '.psql', '.sh', '.bash', '.zsh', '.fish', '.ps1', '.psm1', '.psd1', '.bat', '.cmd', '.html', '.htm', '.css', '.scss', '.sass', '.less', '.json', '.jsonc', '.json5', '.xml', '.yaml', '.yml', '.toml', '.ini', '.cfg', '.conf', '.properties', '.gradle', '.groovy', '.hcl', '.tf', '.tfvars', '.nix', '.vue', '.svelte', '.astro', '.graphql', '.gql', '.proto', '.mdx', '.ipynb', '.tex', '.asm', '.s', '.d', '.zig', '.v', '.nim', '.cr', '.jl', '.m', '.mm', '.sol', '.move', '.wat', '.wgsl', '.diff', '.patch', '.make', '.mk', '.cmake', '.bzl', '.lisp', '.lsp', '.scm', '.rkt', '.el', '.ml', '.mli', '.f', '.for', '.f77', '.f90', '.f95', '.f03', '.f08', '.f18', '.fpp', '.cob', '.cbl', '.cobol', '.pas', '.p', '.pp', '.ino', '.sv', '.vhd', '.vhdl', '.tcl', '.awk', '.elm', '.purs', '.re', '.rei']);
+const textFileExtensions = new Set([...sourceCodeExtensions, '.txt', '.md', '.csv']);
+const supportedTypes = new Map([
+  ...Object.entries({
   '.pdf': 'application/pdf',
   '.doc': 'application/msword',
   '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -253,7 +256,9 @@ const supportedTypes = new Map(Object.entries({
   '.txt': 'text/plain; charset=utf-8',
   '.md': 'text/markdown; charset=utf-8',
   '.csv': 'text/csv; charset=utf-8'
-}));
+  }),
+  ...Array.from(sourceCodeExtensions, extension => [extension, extension === '.js' ? 'text/javascript; charset=utf-8' : 'text/plain; charset=utf-8'])
+]);
 const upload = multer({
   storage: multer.diskStorage({
     destination: storageDirectory,
@@ -410,7 +415,7 @@ app.post('/api/files', (request, response, next) => {
       database.prepare(`
         INSERT INTO files (id, name, stored_name, mime, size, folder_id, tags, search_text, created_at, modified_at)
         VALUES (?, ?, ?, ?, ?, ?, '[]', ?, ?, ?)
-      `).run(id, name, file.filename, supportedTypes.get(extension), file.size, folderId, ['.txt', '.md', '.csv'].includes(extension) ? fs.readFileSync(file.path, 'utf8').slice(0, 1_000_000) : '', modifiedAt, modifiedAt);
+      `).run(id, name, file.filename, supportedTypes.get(extension), file.size, folderId, textFileExtensions.has(extension) ? fs.readFileSync(file.path, 'utf8').slice(0, 1_000_000) : '', modifiedAt, modifiedAt);
       return {
         id,
         name,
@@ -445,8 +450,9 @@ app.get('/api/files/:id/content', (request, response, next) => {
   const filePath = path.resolve(storageDirectory, file.stored_name);
   if (!filePath.startsWith(`${storageDirectory}${path.sep}`)) return response.status(400).end();
   response.setHeader('X-Content-Type-Options', 'nosniff');
-  response.setHeader('Content-Type', file.mime);
-  const forceDownload = request.query.download || path.extname(file.name).toLowerCase() === '.svg';
+  const extension = path.extname(file.name).toLowerCase();
+  response.setHeader('Content-Type', textFileExtensions.has(extension) ? 'text/plain; charset=utf-8' : file.mime);
+  const forceDownload = request.query.download || extension === '.svg' || sourceCodeExtensions.has(extension);
   const disposition = forceDownload ? 'attachment' : 'inline';
   response.setHeader('Content-Disposition', `${disposition}; filename*=UTF-8''${encodeURIComponent(file.name)}`);
   const stream = fs.createReadStream(filePath);
@@ -457,8 +463,8 @@ app.put('/api/files/:id/content', (request, response) => {
   const file = database.prepare('SELECT * FROM files WHERE id = ?').get(request.params.id);
   if (!file) return response.status(404).json({ error: 'File not found.' });
   const extension = path.extname(file.name).toLowerCase();
-  if (!['.txt', '.md', '.csv'].includes(extension)) {
-    return response.status(415).json({ error: 'In-app editing is available for TXT, MD, and CSV files.' });
+  if (!textFileExtensions.has(extension)) {
+    return response.status(415).json({ error: 'In-app editing is only available for supported text and source-code files.' });
   }
   const content = typeof request.body.content === 'string' ? request.body.content : null;
   if (content === null) return response.status(400).json({ error: 'Document content is required.' });

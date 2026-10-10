@@ -785,6 +785,11 @@ button {
   background: #f4fbf7
 }
 
+.file-art.source-code {
+  color: #b89426;
+  background: #fffdf3
+}
+
 .file-art.png,.file-art.jpg,.file-art.jpeg,.file-art.gif,.file-art.webp,.file-art.svg {
   color: #8664d8;
   background: #faf7ff

@@ -18,11 +18,11 @@ For a production build, run `npm run build` and then `npm start`. Express serves
 
 - Upload up to 20 files per batch with upload progress and clear success/error messages.
 - Upload a folder with the **Upload folder** picker (preserves nested folders), or drag files/folders onto the workspace where the browser supports it.
-- Accept PDF, DOC/DOCX, PPT/PPTX, XLS/XLSX, ZIP archives, PNG, JPG/JPEG, GIF, WEBP, SVG, TXT, Markdown, and CSV files. Folio sets no per-file or total storage quota; available server disk space is the limit.
+- Accept PDF, DOC/DOCX, PPT/PPTX, XLS/XLSX, ZIP archives, and source/configuration text files for common languages including JavaScript, TypeScript, Python, Java, C/C++, C#, Go, Rust, PHP, Ruby, Swift, Kotlin, SQL, shell, PowerShell, HTML, CSS, JSON, XML, YAML, and more. Folio sets no per-file or total storage quota; available server disk space is the limit.
 - Check file extensions and basic file signatures before accepting uploads. Files use random server-generated storage names.
-- Preview PDFs, common raster images, and text files. Read the text and cell contents of DOCX, XLSX, and PPTX files without an Office service; edit and save TXT, Markdown, and CSV files in the workspace.
+- Preview PDFs, common raster images, and text files. Read the text and cell contents of DOCX, XLSX, and PPTX files without an Office service; edit and save supported source-code, TXT, Markdown, and CSV files in the workspace. Source files are displayed as plain text and are never executed by Folio.
 - Create nested folders, rename folders, move and rename files, edit tags, star files, and delete with confirmation.
-- Search names and tags across the workspace. Search also indexes TXT, Markdown, and CSV content (up to the first 1 MB of each file).
+- Search names and tags across the workspace. Search also indexes supported source-code, TXT, Markdown, and CSV content (up to the first 1 MB of each file).
 - Filter by file type, size, and date added/modified. Sort by name, type, size, date added, or last modified.
 - View details including file type, size, upload date, and last modified date. Switch between grid and list layouts.
 - Upload, organize, search, and download ZIP archives. Folio does not unpack or preview archive contents.

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Folder, FolderOpen, Files, Image as ImageIcon, FileText, Presentation, Table2, Archive, Upload, Plus, Search, Grid2X2, List, MoreHorizontal, Download, Eye, Pencil, Trash2, ChevronRight, ChevronLeft, ChevronDown, ArrowLeft, ArrowUpDown, Tag, X, File, CheckCircle2, AlertCircle, CloudUpload, Menu, ArrowLeftRight, LockKeyhole, Command } from 'lucide-react';
+import { Folder, FolderOpen, Files, Image as ImageIcon, FileText, Presentation, Table2, Archive, Code2, Upload, Plus, Search, Grid2X2, List, MoreHorizontal, Download, Eye, Pencil, Trash2, ChevronRight, ChevronLeft, ChevronDown, ArrowLeft, ArrowUpDown, Tag, X, File, CheckCircle2, AlertCircle, CloudUpload, Menu, ArrowLeftRight, LockKeyhole, Command } from 'lucide-react';
 import './style.css';
 const fmtSize = n => n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1048576).toFixed(1)} MB`;
 const date = x => new Date(x).toLocaleDateString(undefined, {
@@ -9,10 +9,13 @@ const date = x => new Date(x).toLocaleDateString(undefined, {
   year: 'numeric'
 });
 const ext = x => (x.split('.').pop() || 'FILE').toUpperCase();
-const fileTypes = ['PDF', 'DOC', 'DOCX', 'PPT', 'PPTX', 'XLS', 'XLSX', 'ZIP', 'PNG', 'JPG', 'JPEG', 'GIF', 'WEBP', 'SVG', 'TXT', 'MD', 'CSV'];
+const sourceCodeTypes = ['JS', 'MJS', 'CJS', 'JSX', 'TS', 'MTS', 'CTS', 'TSX', 'PY', 'PYI', 'PYW', 'JAVA', 'C', 'H', 'CC', 'CPP', 'CXX', 'HH', 'HPP', 'HXX', 'CS', 'CSX', 'CSHTML', 'RAZOR', 'FS', 'FSI', 'FSX', 'VB', 'GO', 'RS', 'PHP', 'RB', 'R', 'SWIFT', 'KT', 'KTS', 'DART', 'LUA', 'PL', 'PM', 'EX', 'EXS', 'HS', 'LHS', 'SCALA', 'SC', 'CLJ', 'CLJC', 'CLJS', 'EDN', 'ERL', 'HRL', 'SQL', 'PGSQL', 'PSQL', 'SH', 'BASH', 'ZSH', 'FISH', 'PS1', 'PSM1', 'PSD1', 'BAT', 'CMD', 'HTML', 'HTM', 'CSS', 'SCSS', 'SASS', 'LESS', 'JSON', 'JSONC', 'JSON5', 'XML', 'YAML', 'YML', 'TOML', 'INI', 'CFG', 'CONF', 'PROPERTIES', 'GRADLE', 'GROOVY', 'HCL', 'TF', 'TFVARS', 'NIX', 'VUE', 'SVELTE', 'ASTRO', 'GRAPHQL', 'GQL', 'PROTO', 'MDX', 'IPYNB', 'TEX', 'ASM', 'S', 'D', 'ZIG', 'V', 'NIM', 'CR', 'JL', 'M', 'MM', 'SOL', 'MOVE', 'WAT', 'WGSL', 'DIFF', 'PATCH', 'MAKE', 'MK', 'CMAKE', 'BZL', 'LISP', 'LSP', 'SCM', 'RKT', 'EL', 'ML', 'MLI', 'F', 'FOR', 'F77', 'F90', 'F95', 'F03', 'F08', 'F18', 'FPP', 'COB', 'CBL', 'COBOL', 'PAS', 'P', 'PP', 'INO', 'SV', 'VHD', 'VHDL', 'TCL', 'AWK', 'ELM', 'PURS', 'RE', 'REI'];
+const sourceCodeTypeSet = new Set(sourceCodeTypes);
+const acceptedFileTypes = ['PDF', 'DOC', 'DOCX', 'PPT', 'PPTX', 'XLS', 'XLSX', 'ZIP', ...sourceCodeTypes, 'PNG', 'JPG', 'JPEG', 'GIF', 'WEBP', 'SVG', 'TXT', 'MD', 'CSV'];
+const fileTypes = ['PDF', 'DOC', 'DOCX', 'PPT', 'PPTX', 'XLS', 'XLSX', 'ZIP', 'CODE', 'PNG', 'JPG', 'JPEG', 'GIF', 'WEBP', 'SVG', 'TXT', 'MD', 'CSV'];
 const iconFor = n => {
   const e = ext(n);
-  return e === 'ZIP' ? Archive : e === 'PDF' || ['DOC', 'DOCX', 'TXT', 'MD'].includes(e) ? FileText : ['PPT', 'PPTX'].includes(e) ? Presentation : ['XLS', 'XLSX', 'CSV'].includes(e) ? Table2 : ['PNG', 'JPG', 'JPEG', 'GIF', 'WEBP'].includes(e) ? ImageIcon : File;
+  return e === 'ZIP' ? Archive : sourceCodeTypeSet.has(e) ? Code2 : e === 'PDF' || ['DOC', 'DOCX', 'TXT', 'MD'].includes(e) ? FileText : ['PPT', 'PPTX'].includes(e) ? Presentation : ['XLS', 'XLSX', 'CSV'].includes(e) ? Table2 : ['PNG', 'JPG', 'JPEG', 'GIF', 'WEBP'].includes(e) ? ImageIcon : File;
 };
 function App() {
   const [token, setToken] = useState(''),
@@ -101,7 +104,8 @@ function App() {
   }
   const visible = useMemo(() => {
     let a = [...files];
-    if (filter !== 'all') a = a.filter(f => ext(f.name) === filter);
+    if (filter === 'CODE') a = a.filter(f => sourceCodeTypeSet.has(ext(f.name)));
+    else if (filter !== 'all') a = a.filter(f => ext(f.name) === filter);
     if (sizeFilter === 'small') a = a.filter(file => file.size < 1024 * 1024);
     if (sizeFilter === 'medium') a = a.filter(file => file.size >= 1024 * 1024 && file.size < 10 * 1024 * 1024);
     if (sizeFilter === 'large') a = a.filter(file => file.size >= 10 * 1024 * 1024);
@@ -545,7 +549,7 @@ function App() {
       </button>
       </div>)}</div>
       <div className="side-label type-label">FILE TYPES</div>{fileTypes.map(type => <button className={`nav-item type-item ${filter === type ? 'active' : ''}`} key={type} onClick={() => setFilter(filter === type ? 'all' : type)}>
-      <FileText size={17} />{type}</button>)}</div>
+      {type === 'CODE' ? <Code2 size={17} /> : <FileText size={17} />}{type === 'CODE' ? 'Code files' : type}</button>)}</div>
       <div className="sidebar-bottom">
       <div className="storage">
       <div className="storage-title">
@@ -581,8 +585,8 @@ function App() {
       <Upload size={16} />Upload files</button>
       <button className="secondary" title="Choose a folder from your computer" aria-label="Upload folder" onClick={() => folderInput.current.click()}>
       <Folder size={16} />Upload folder</button>
-      <input ref={input} type="file" accept={fileTypes.map(type => `.${type.toLowerCase()}`).join(',')} multiple hidden onChange={upload} />
-      <input ref={folderInput} type="file" accept={fileTypes.map(type => `.${type.toLowerCase()}`).join(',')} webkitdirectory="" directory="" multiple hidden onChange={upload} />
+      <input ref={input} type="file" accept={acceptedFileTypes.map(type => `.${type.toLowerCase()}`).join(',')} multiple hidden onChange={upload} />
+      <input ref={folderInput} type="file" accept={acceptedFileTypes.map(type => `.${type.toLowerCase()}`).join(',')} webkitdirectory="" directory="" multiple hidden onChange={upload} />
       </div>
       </div>
       <div className="stats">
@@ -791,7 +795,7 @@ function FileCard({
   const e = ext(f.name),
     img = ['PNG', 'JPG', 'JPEG', 'GIF', 'WEBP'].includes(e);
   return <article className="file-card">
-      <button className={`file-preview ${img ? 'image-preview' : ''}`} onClick={onSelect} aria-label={`Preview ${f.name}`}>{img ? <img src={`/api/files/${f.id}/content`} alt="" /> : <div className={`file-art ${e.toLowerCase()}`}>{React.createElement(iconFor(f.name), {
+      <button className={`file-preview ${img ? 'image-preview' : ''}`} onClick={onSelect} aria-label={`Preview ${f.name}`}>{img ? <img src={`/api/files/${f.id}/content`} alt="" /> : <div className={`file-art ${e.toLowerCase()} ${sourceCodeTypeSet.has(e) ? 'source-code' : ''}`}>{React.createElement(iconFor(f.name), {
           size: 25
         })}<span>{e}</span>
       </div>}<span className="preview-hover">
@@ -948,8 +952,8 @@ function Preview({
       </button>
       </div>
       </div>
-      <div className="preview-body">{['PNG', 'JPG', 'JPEG', 'GIF', 'WEBP', 'SVG'].includes(e) ? <img src={url} alt={file.name} /> : e === 'PDF' ? <iframe src={url} title={file.name} /> : ['TXT', 'MD', 'CSV'].includes(e) ? <TextPreview url={url} file={file} onSave={onSaveContent} /> : ['DOC', 'DOCX', 'PPT', 'PPTX', 'XLS', 'XLSX'].includes(e) ? <OfficeFilePreview file={file} /> : <div className="unsupported">
-      <div className={`file-art ${e.toLowerCase()}`}>{React.createElement(iconFor(file.name), {
+      <div className="preview-body">{['PNG', 'JPG', 'JPEG', 'GIF', 'WEBP', 'SVG'].includes(e) ? <img src={url} alt={file.name} /> : e === 'PDF' ? <iframe src={url} title={file.name} /> : ['TXT', 'MD', 'CSV'].includes(e) || sourceCodeTypeSet.has(e) ? <TextPreview url={url} file={file} onSave={onSaveContent} /> : ['DOC', 'DOCX', 'PPT', 'PPTX', 'XLS', 'XLSX'].includes(e) ? <OfficeFilePreview file={file} /> : <div className="unsupported">
+      <div className={`file-art ${e.toLowerCase()} ${sourceCodeTypeSet.has(e) ? 'source-code' : ''}`}>{React.createElement(iconFor(file.name), {
               size: 35
             })}<span>{e}</span>
       </div>
