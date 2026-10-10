@@ -20,6 +20,8 @@ const iconFor = n => {
 function App() {
   const [token, setToken] = useState(''),
     [authorized, setAuthorized] = useState(false),
+    [requiresAuth, setRequiresAuth] = useState(true),
+    [sessionChecking, setSessionChecking] = useState(true),
     [files, setFiles] = useState([]),
     [workspaceFiles, setWorkspaceFiles] = useState([]),
     [folders, setFolders] = useState([]),
@@ -71,7 +73,10 @@ function App() {
   }
   useEffect(() => {
     localStorage.removeItem('folio-token');
-    api('/api/session').then(() => setAuthorized(true)).catch(() => setAuthorized(false));
+    api('/api/session').then(session => {
+      setRequiresAuth(session.requiresAuth !== false);
+      setAuthorized(true);
+    }).catch(() => setAuthorized(false)).finally(() => setSessionChecking(false));
   }, []);
   useEffect(() => {
     if (!authorized) return;
@@ -450,6 +455,7 @@ function App() {
     visit('', 0);
     return ordered;
   }, [folders, collapsedFolders]);
+  if (sessionChecking) return <div className="session-loading" role="status">Opening your workspace…</div>;
   if (!authorized) return <div className="login">
       <div className="login-card">
       <div className="brand">
@@ -465,7 +471,8 @@ function App() {
       <p>Enter your workspace access key to open your private library.</p>
       <form onSubmit={e => {
         e.preventDefault();
-        api('/api/session').then(() => {
+        api('/api/session').then(session => {
+          setRequiresAuth(session.requiresAuth !== false);
           setToken('');
           setAuthorized(true);
         }).catch(error => toast(error.message, 'error'));
@@ -558,14 +565,14 @@ function App() {
       </div>
       <small>No app storage quota · limited by server disk space</small>
       </div>
-      <button className="profile" onClick={() => onError(logout)}>
+      <div className="profile">
       <div className="avatar">A</div>
       <div>
       <b>April Lentejas</b>
-      <small>Personal workspace</small>
+      <small>{requiresAuth ? 'Personal workspace' : 'Local workspace · no sign-in'}</small>
       </div>
-      <MoreHorizontal size={18} />
-      </button>
+      {requiresAuth && <button className="profile-logout" aria-label="Sign out" title="Sign out" onClick={() => onError(logout)()}><MoreHorizontal size={18} /></button>}
+      </div>
       </div>
       </aside>{mobileNav && <div className="scrim" onClick={() => setMobileNav(false)} />}<main className="main">
       <div className="page-head">

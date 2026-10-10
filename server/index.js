@@ -12,6 +12,7 @@ const projectRoot = path.resolve(here, '..');
 const dataDirectory = path.resolve(process.env.DATA_DIR || path.join(projectRoot, 'data'));
 const storageDirectory = path.join(dataDirectory, 'files');
 const accessKey = process.env.APP_TOKEN;
+const authenticationDisabled = process.env.NODE_ENV !== 'production' && process.env.AUTH_ENABLED !== 'true';
 fs.mkdirSync(storageDirectory, {
   recursive: true
 });
@@ -181,6 +182,21 @@ function officePreview(filePath, extension) {
   throw new Error('Read-only preview is available for DOCX, XLSX, and PPTX files.');
 }
 app.use('/api', (request, response, next) => {
+  if (authenticationDisabled) {
+    const origin = request.headers.origin;
+    if (origin) {
+      let hostname = '';
+      try {
+        const parsedOrigin = new URL(origin);
+        if (parsedOrigin.protocol === 'http:') hostname = parsedOrigin.hostname;
+      } catch { /* Reject invalid origins below. */ }
+      if (!['localhost', '127.0.0.1', '[::1]', '::1'].includes(hostname)) {
+        return response.status(403).json({ error: 'Local workspace requests must come from this computer.' });
+      }
+    }
+    if (request.path === '/session' && request.method === 'DELETE') return response.json({ ok: true });
+    return next();
+  }
   if (!accessKey) return response.status(503).json({
     error: 'Set APP_TOKEN in your environment before starting the app.'
   });
@@ -218,7 +234,8 @@ app.get('/api/health', (_request, response) => response.json({
   ok: true
 }));
 app.get('/api/session', (_request, response) => response.json({
-  ok: true
+  ok: true,
+  requiresAuth: !authenticationDisabled
 }));
 app.get('/api/files/:id/office-preview', (request, response) => {
   const file = database.prepare('SELECT * FROM files WHERE id = ?').get(request.params.id);
@@ -551,4 +568,5 @@ if (fs.existsSync(builtApp)) {
   app.get('*', (_request, response) => response.sendFile(path.join(builtApp, 'index.html')));
 }
 const port = Number(process.env.PORT || 3001);
-app.listen(port, '0.0.0.0', () => console.log(`Folio server listening on ${port}`));
+const host = authenticationDisabled ? '127.0.0.1' : '0.0.0.0';
+app.listen(port, host, () => console.log(`Folio server listening on ${host}:${port}`));

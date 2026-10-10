@@ -8,9 +8,10 @@ Requirements: Node.js 20 or newer and npm.
 
 1. Open a terminal in the project folder and run `npm install`.
 2. Copy `.env.example` to `.env`.
-3. Set `APP_TOKEN` in `.env` to a long, private access key.
-4. Start the app with `npm run dev`.
-5. Open the Vite address printed in the terminal (usually `http://localhost:5173`) and enter your access key.
+3. Start the app with `npm run dev`.
+4. Open the Vite address printed in the terminal (usually `http://localhost:5173`). Local development opens Folio without a sign-in screen and listens only on your PC.
+
+To require a key locally, set `AUTH_ENABLED=true` and a strong `APP_TOKEN` in `.env`. Production always requires `APP_TOKEN` and listens on the host interface for deployment.
 
 For a production build, run `npm run build` and then `npm start`. Express serves the built interface and API on port 3001 by default. Set `PORT` to change it.
 
@@ -45,7 +46,7 @@ For a production build, run `npm run build` and then `npm start`. Express serves
 
 `render.yaml` defines a Render web service with a persistent disk for uploaded files and SQLite, plus a generated `APP_TOKEN`. Connect this GitHub repository to Render and create a Blueprint from the file to deploy. This configuration uses a paid web service and disk. Render's free web services do not retain local files across restarts, deploys, or spin-downs, so they are not suitable for keeping Folio uploads.
 
-The hosted URL is reachable from the internet; the workspace access key protects file access. Keep the generated `APP_TOKEN` private and set a strong unique key if you replace it.
+The hosted URL is reachable from the internet; production authentication protects file access. Keep the generated `APP_TOKEN` private and set a strong unique key if you replace it.
 
 ### Office document previews
 
