@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: folio
+    runtime: node
+    plan: 0.5c-512mb
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATA_DIR
+        value: /var/data
+      - key: APP_TOKEN
+        generateValue: true
+    disk:
+      name: folio-data
+      mountPath: /var/data
+      sizeGB: 1

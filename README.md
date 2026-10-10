@@ -40,6 +40,12 @@ For a production build, run `npm run build` and then `npm start`. Express serves
 
 `APP_TOKEN` is required. `PORT`, `DATA_DIR`, and `CORS_ORIGIN` are optional. `DATA_DIR` should point to a persistent, access-controlled location for the database and uploaded files. Keep `.env` private.
 
+## Online deployment
+
+`render.yaml` defines a Render web service with a persistent disk for uploaded files and SQLite, plus a generated `APP_TOKEN`. Connect this GitHub repository to Render and create a Blueprint from the file to deploy. This configuration uses a paid web service and disk. Render's free web services do not retain local files across restarts, deploys, or spin-downs, so they are not suitable for keeping Folio uploads.
+
+The hosted URL is reachable from the internet; the workspace access key protects file access. Keep the generated `APP_TOKEN` private and set a strong unique key if you replace it.
+
 ### Office document previews
 
 Folio can extract readable text from DOCX and PPTX files and cell values from XLSX files without external services. This is a content view and does not preserve the original Office layout. Use PDF files when you need a fixed page appearance. TXT, Markdown, and CSV files can still be edited in Folio.
