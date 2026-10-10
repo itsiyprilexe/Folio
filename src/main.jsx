@@ -72,7 +72,7 @@ function App() {
   }
   async function refresh() {
     const version = ++refreshVersion.current;
-    const folderQuery = folder === 'all' ? 'root' : folder === 'starred' || folder === 'hidden' ? '' : folder;
+    const folderQuery = folder === 'all' || folder === 'hidden' ? 'root' : folder === 'starred' ? '' : folder;
     const listingQuery = hiddenMode ? 'view=hidden&' : '';
     const [currentFiles, allFiles, allFolders, stats, searchedFiles, privateFolders, allPrivateFiles] = await Promise.all([api(`/api/files?${listingQuery}folder=${encodeURIComponent(folderQuery)}&q=${encodeURIComponent(query)}`), api('/api/files'), api('/api/folders'), api('/api/storage'), folder === 'starred' ? api(`/api/files?q=${encodeURIComponent(query)}`) : Promise.resolve([]), hiddenMode ? api('/api/folders?view=hidden') : Promise.resolve([]), hiddenMode ? api('/api/files?view=hidden') : Promise.resolve([])]);
     if (version !== refreshVersion.current) return;
