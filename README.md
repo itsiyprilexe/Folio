@@ -27,20 +27,20 @@ For a production build, run `npm run build` and then `npm start`. Express serves
 - Filter by file type, size, and date added/modified. Sort by name, type, size, date added, or last modified.
 - View details including file type, size, upload date, and last modified date. Switch between grid and list layouts.
 - Upload, organize, search, and download ZIP archives. Folio does not unpack or preview archive contents.
-- Protect the API and file contents with a workspace access key and an HTTP-only, same-site session cookie.
+- Protect the API and file contents with a workspace access key and an HTTP-only, same-site session cookie when authentication is enabled. Local development skips sign-in by default and binds the API to loopback.
 
 ## Project structure
 
 - `src/main.jsx` — React workspace, upload flow, file actions, previews, and dialogs.
 - `src/style.css` — responsive desktop and mobile interface styles.
-- `server/index.js` — authenticated API, file validation, local file storage, and SQLite operations.
+- `server/index.js` — API authentication, file validation, local file storage, and SQLite operations.
 - `data/folio.sqlite` — metadata database, created automatically.
 - `data/files/` — uploaded file contents, stored using random names.
 - `.env.example` — configuration template.
 
 ## Configuration
 
-`APP_TOKEN` is required. `PORT`, `DATA_DIR`, and `CORS_ORIGIN` are optional. `DATA_DIR` should point to a persistent, access-controlled location for the database and uploaded files. Keep `.env` private.
+Local development does not require `APP_TOKEN`. Set `AUTH_ENABLED=true` and a strong `APP_TOKEN` in `.env` if you want to require sign-in locally. Production always requires `APP_TOKEN`; keep it private and use a strong, unique value. `PORT`, `DATA_DIR`, and `CORS_ORIGIN` are optional. `DATA_DIR` should point to a persistent, access-controlled location for the database and uploaded files. Keep `.env` private.
 
 ## Online deployment
 
@@ -56,7 +56,7 @@ Folio can extract readable text from DOCX and PPTX files and cell values from XL
 
 - Full-text search is available for TXT, Markdown, and CSV only. Searching inside PDF and Office documents needs a text extraction/indexing service.
 - DOCX, XLSX, and PPTX previews show extracted text and cell values only. Original Office layout rendering and editing Office files are not included. PDF files can be previewed with their saved appearance. Older DOC/XLS/PPT files can be downloaded and opened in a compatible desktop app.
-- This starter app uses one shared access key for a single workspace. Multi-user accounts, per-user permissions, audit history, and cloud storage need additional services and production authentication.
+- This starter app uses one shared access key for a single workspace when authentication is enabled. Local development is intended for use on the same PC and skips sign-in by default. Multi-user accounts, per-user permissions, audit history, and cloud storage need additional services and production authentication.
 - For public internet deployment, add HTTPS, rate limiting, malware scanning, content inspection, backups, and stronger account/session management.
 - Upload signatures are checked for common file families. Office Open XML files are checked for ZIP signatures, not fully inspected internally.
 - Folder selection uses the browser's directory picker. Folder drag and drop uses the Chromium folder-entry API (Chrome and Edge); the folder picker is the fallback when a browser cannot expose dropped folders.
