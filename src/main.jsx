@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Folder, FolderOpen, Files, Image as ImageIcon, FileText, Presentation, Table2, Archive, Code2, Video, Upload, Plus, Search, Grid2X2, List, MoreHorizontal, Download, Eye, EyeOff, Pencil, Trash2, ChevronRight, ChevronLeft, ChevronDown, ArrowLeft, ArrowUpDown, Tag, X, File, CheckCircle2, AlertCircle, CloudUpload, Menu, ArrowLeftRight, LockKeyhole, Command } from 'lucide-react';
+import { Folder, FolderOpen, Files, Image as ImageIcon, FileText, Presentation, Table2, Archive, Code2, Video, Upload, Plus, Grid2X2, List, MoreHorizontal, Download, Eye, EyeOff, Pencil, Trash2, ChevronRight, ChevronDown, ArrowLeft, ArrowUpDown, Tag, X, File, CheckCircle2, AlertCircle, CloudUpload, Menu, ArrowLeftRight, LockKeyhole, Command } from 'lucide-react';
 import './style.css';
 const fmtSize = n => n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1048576).toFixed(1)} MB`;
 const date = x => new Date(x).toLocaleDateString(undefined, {
@@ -30,7 +30,7 @@ function App() {
     [folders, setFolders] = useState([]),
     [hiddenFolders, setHiddenFolders] = useState([]),
     [folder, setFolder] = useState('all'),
-    [query, setQuery] = useState(''),
+    [loadedFolder, setLoadedFolder] = useState(null),
     [sort, setSort] = useState('modified_at'),
     [view, setView] = useState('grid'),
     [sizeFilter, setSizeFilter] = useState('all'),
@@ -43,16 +43,13 @@ function App() {
     [busy, setBusy] = useState(false),
     [isDragging, setIsDragging] = useState(false),
     [mobileNav, setMobileNav] = useState(false),
-    [filter, setFilter] = useState('all'),
-    [page, setPage] = useState(0);
+    [filter, setFilter] = useState('all');
   const [hiddenPasswordConfigured, setHiddenPasswordConfigured] = useState(false);
   const [hiddenUnlocked, setHiddenUnlocked] = useState(false);
   const [hiddenStatusReady, setHiddenStatusReady] = useState(false);
   const hiddenMode = folder === 'hidden' || hiddenFolders.some(item => item.id === folder);
   const [collapsedFolders, setCollapsedFolders] = useState(() => new Set());
   const input = useRef();
-  const folderInput = useRef();
-  const searchInput = useRef();
   const refreshVersion = useRef(0);
   const dragDepth = useRef(0);
   const headers = {
@@ -74,14 +71,15 @@ function App() {
     const version = ++refreshVersion.current;
     const folderQuery = folder === 'all' || folder === 'hidden' ? 'root' : folder === 'starred' ? '' : folder;
     const listingQuery = hiddenMode ? 'view=hidden&' : '';
-    const [currentFiles, allFiles, allFolders, stats, searchedFiles, privateFolders, allPrivateFiles] = await Promise.all([api(`/api/files?${listingQuery}folder=${encodeURIComponent(folderQuery)}&q=${encodeURIComponent(query)}`), api('/api/files'), api('/api/folders'), api('/api/storage'), folder === 'starred' ? api(`/api/files?q=${encodeURIComponent(query)}`) : Promise.resolve([]), hiddenMode ? api('/api/folders?view=hidden') : Promise.resolve([]), hiddenMode ? api('/api/files?view=hidden') : Promise.resolve([])]);
+    const [currentFiles, allFiles, allFolders, stats, privateFolders, allPrivateFiles] = await Promise.all([api(`/api/files?${listingQuery}folder=${encodeURIComponent(folderQuery)}`), api('/api/files'), api('/api/folders'), api('/api/storage'), hiddenMode ? api('/api/folders?view=hidden') : Promise.resolve([]), hiddenMode ? api('/api/files?view=hidden') : Promise.resolve([])]);
     if (version !== refreshVersion.current) return;
     setWorkspaceFiles(allFiles);
     setWorkspaceStats(stats);
-    setFiles(folder === 'starred' ? searchedFiles.filter(file => file.tags.includes('starred')) : currentFiles);
+    setFiles(folder === 'starred' ? allFiles.filter(file => file.tags.includes('starred')) : currentFiles);
     setFolders(allFolders);
     setHiddenFolders(privateFolders);
     setHiddenWorkspaceFiles(allPrivateFiles);
+    setLoadedFolder(folder);
   }
   useEffect(() => {
     localStorage.removeItem('folio-token');
@@ -99,9 +97,9 @@ function App() {
         setModal('hidden-password');
       }
       toast(e.message, 'error');
-    }), query ? 180 : 0);
+    }), 0);
     return () => window.clearTimeout(timer);
-  }, [authorized, folder, query]);
+  }, [authorized, folder]);
   useEffect(() => {
     if (!authorized) return;
     api('/api/hidden/status').then(status => {
@@ -112,23 +110,6 @@ function App() {
       setHiddenUnlocked(false);
     }).finally(() => setHiddenStatusReady(true));
   }, [authorized]);
-  useEffect(() => {
-    setPage(0);
-  }, [folder, query, filter, sizeFilter, dateFilter, sort]);
-  useEffect(() => {
-    const handleShortcut = event => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
-        event.preventDefault();
-        searchInput.current?.focus();
-      }
-      if (event.key === 'Escape' && document.activeElement === searchInput.current) {
-        setQuery('');
-        searchInput.current?.blur();
-      }
-    };
-    window.addEventListener('keydown', handleShortcut);
-    return () => window.removeEventListener('keydown', handleShortcut);
-  }, []);
   function toast(text, type = 'ok') {
     setMessage({
       text,
@@ -156,16 +137,11 @@ function App() {
   const childFolders = useMemo(() => {
     if (folder === 'starred') return [];
     const parentId = folder === 'all' || folder === 'hidden' ? null : folder;
-    const normalizedQuery = query.trim().toLocaleLowerCase();
     return (hiddenMode ? hiddenFolders : folders)
-      .filter(item => (item.parent_id || null) === parentId && (!normalizedQuery || item.name.toLocaleLowerCase().includes(normalizedQuery)))
+      .filter(item => (item.parent_id || null) === parentId)
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [folders, hiddenFolders, hiddenMode, folder, query]);
+  }, [folders, hiddenFolders, hiddenMode, folder]);
   const folderItemCount = item => (hiddenMode ? hiddenWorkspaceFiles : workspaceFiles).filter(file => file.folder_id === item.id).length + (hiddenMode ? hiddenFolders : folders).filter(child => child.parent_id === item.id).length;
-  const pageSize = 12;
-  const pageCount = Math.max(1, Math.ceil(visible.length / pageSize));
-  const currentPage = Math.min(page, pageCount - 1);
-  const pageFiles = visible.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
   function sendUploadBatch(items, folderId, onProgress, hidden = false) {
     return new Promise((resolve, reject) => {
       const form = new FormData();
@@ -569,20 +545,7 @@ function App() {
       <Menu />
       </button>
       <div className="brand">
-      <div className="brand-mark">
-      <Command size={19} />
-      </div>
       <span>folio</span>
-      </div>
-      <div className="top-search">
-      <Search size={17} />
-      <input ref={searchInput} value={query} onChange={e => setQuery(e.target.value)} placeholder="Search names, tags, and text files" aria-label="Search files" />
-      <kbd>⌘ K</kbd>
-      </div>
-      <div className="top-actions">
-      <span className="secure">
-      <span /> Private workspace</span>
-      <div className="avatar">A</div>
       </div>
       </header>
       <aside className={`sidebar ${mobileNav ? 'show' : ''}`}>
@@ -594,8 +557,6 @@ function App() {
         }}>
       <Files size={18} />All files
       </button>
-      <button className={`nav-item ${folder === 'starred' ? 'active' : ''}`} onClick={() => setFolder('starred')}>
-      <Tag size={18} />Starred</button>
       <div className="hidden-nav-row">
       <button className={`nav-item ${hiddenMode ? 'active' : ''}`} onClick={openHidden}>
       <EyeOff size={18} />Hidden<span className="nav-count">{workspaceStats.hiddenCount}</span>
@@ -642,14 +603,6 @@ function App() {
       </div>
       <small>No app storage quota · limited by server disk space</small>
       </div>
-      <div className="profile">
-      <div className="avatar">A</div>
-      <div>
-      <b>April Lentejas</b>
-      <small>{requiresAuth ? 'Personal workspace' : 'Local workspace · no sign-in'}</small>
-      </div>
-      {requiresAuth && <button className="profile-logout" aria-label="Sign out" title="Sign out" onClick={() => onError(logout)()}><MoreHorizontal size={18} /></button>}
-      </div>
       </div>
       </aside>{mobileNav && <div className="scrim" onClick={() => setMobileNav(false)} />}<main className="main">
       <div className="page-head">
@@ -667,10 +620,7 @@ function App() {
       <Plus size={16} />New folder</button>
       <button className="primary" onClick={() => input.current.click()}>
       <Upload size={16} />Upload files</button>
-      <button className="secondary" title="Choose a folder from your computer" aria-label="Upload folder" onClick={() => folderInput.current.click()}>
-      <Folder size={16} />Upload folder</button>
       <input ref={input} type="file" accept={acceptedFileTypes.map(type => `.${type.toLowerCase()}`).join(',')} multiple hidden onChange={upload} />
-      <input ref={folderInput} type="file" accept={acceptedFileTypes.map(type => `.${type.toLowerCase()}`).join(',')} webkitdirectory="" directory="" multiple hidden onChange={upload} />
       </div>
       </div>
       <div className="stats">
@@ -792,7 +742,7 @@ function App() {
           <td>{folderItemCount(item)}</td>
         </tr>)}</tbody>
       </table></div>}
-      </div>}{visible.length ? view === 'grid' ? <div className="file-grid">{pageFiles.map(f => <FileCard key={f.id} f={f} onSelect={() => {
+      </div>}{loadedFolder !== folder ? <div className="folder-loading" role="status">Loading folder…</div> : visible.length ? view === 'grid' ? <div className="file-grid">{visible.map(f => <FileCard key={f.id} f={f} onSelect={() => {
             setSelected(f);
             setModal('preview');
           }} onMore={() => {
@@ -811,7 +761,7 @@ function App() {
       </th>
       </tr>
       </thead>
-      <tbody>{pageFiles.map(f => <tr key={f.id}>
+      <tbody>{visible.map(f => <tr key={f.id}>
       <td>
       <button className="table-name" onClick={() => {
                     setSelected(f);
@@ -845,22 +795,15 @@ function App() {
       <Files size={28} />
       </div>
       </div>
-      <h3>{query ? 'No matching files' : folder === 'hidden' ? 'No hidden files' : hiddenMode ? 'This hidden folder is empty' : folder === 'all' ? 'Browse your folders' : 'Your workspace is ready'}</h3>
-      <p>{query ? 'Try another search or clear your filters.' : folder === 'hidden' ? 'Files you hide and folders you create will appear here.' : hiddenMode ? 'Add files or create a subfolder here.' : folder === 'all' ? 'Open a folder to see its files, or choose a file type to filter files here.' : 'Upload your first file or create a folder to get started.'}</p>
+      <h3>{folder === 'hidden' ? 'No hidden files' : hiddenMode ? 'This hidden folder is empty' : folder === 'all' ? 'Browse your folders' : 'Your workspace is ready'}</h3>
+      <p>{folder === 'hidden' ? 'Files you hide and folders you create will appear here.' : hiddenMode ? 'Add files or create a subfolder here.' : folder === 'all' ? 'Open a folder to see its files, or choose a file type to filter files here.' : 'Upload your first file or create a folder to get started.'}</p>
       <div>
       <button className="secondary" onClick={() => setModal('folder')}>
       <Plus size={16} />Create folder</button>
       <button className="primary" onClick={() => input.current.click()}>
       <Upload size={16} />Upload files</button>
       </div>
-      </div>}{visible.length > pageSize && <nav className="file-pagination" aria-label="File pages">
-      <span>Showing {currentPage * pageSize + 1}–{Math.min((currentPage + 1) * pageSize, visible.length)} of {visible.length} files</span>
-      <div>
-      <button className="secondary" aria-label="Previous page" disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}><ChevronLeft size={16} />Previous</button>
-      <span aria-live="polite">Page {currentPage + 1} of {pageCount}</span>
-      <button className="secondary" aria-label="Next page" disabled={currentPage >= pageCount - 1} onClick={() => setPage(currentPage + 1)}>Next<ChevronRight size={16} /></button>
-      </div>
-      </nav>}</section>
+      </div>}</section>
       <footer>Folio <span>·</span> Your personal file workspace</footer>
       </main>{message && <div className={`toast ${message.type}`} role="status">{message.type === 'error' ? <AlertCircle size={17} /> : <CheckCircle2 size={17} />} {message.text}</div>}{modal === 'folder' && <FolderModal onClose={() => setModal('')} onCreate={onError(createFolder)} />}{modal === 'hidden-password' && <HiddenPasswordModal configured={hiddenPasswordConfigured} onClose={() => setModal('')} onSubmit={onError(submitHiddenPassword)} />}{modal === 'actions' && target && <ActionModal file={target} close={() => setModal('')} onPreview={() => {
       setSelected(target);

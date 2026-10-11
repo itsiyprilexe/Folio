@@ -17,18 +17,17 @@ For a production build, run `npm run build` and then `npm start`. Express serves
 
 ## Features
 
-- The default **All files** view shows folders only. Open a folder to view its contents, or select a file type to filter files in the current view.
+- The **All files** view shows your folders. Open a folder to view its files; the current folder's complete file list appears without pagination. Select a file type to filter the current view.
 - Upload up to 20 files per batch with upload progress and clear success/error messages.
-- Upload a folder with the **Upload folder** picker (preserves nested folders), or drag files/folders onto the workspace where the browser supports it.
+- Drag files or folders onto the workspace to upload them. Folder drops preserve nested folders in supported browsers.
 - Accept PDF, DOC/DOCX, PPT/PPTX, XLS/XLSX, ZIP archives, MP4/WebM/MOV videos, and source/configuration text files for common languages including JavaScript, TypeScript, Python, Java, C/C++, C#, Go, Rust, PHP, Ruby, Swift, Kotlin, SQL, shell, PowerShell, HTML, CSS, JSON, XML, YAML, and more. Folio sets no per-file or total storage quota; available server disk space is the limit.
 - Check file extensions and basic file signatures before accepting uploads. Files use random server-generated storage names.
 - Preview PDFs, common raster images, MP4/WebM/MOV videos, and text files. Video playback depends on the codecs supported by the browser. Read the text and cell contents of DOCX, XLSX, and PPTX files without an Office service; edit and save supported source-code, TXT, Markdown, and CSV files in the workspace. Source files are displayed as plain text and are never executed by Folio.
 - Create nested folders, rename folders, move and rename files, edit tags, star files, and delete with confirmation.
 - Hide files from regular workspace views and restore them from the dedicated **Hidden** section. Create folders and subfolders inside Hidden; files uploaded there are protected automatically. The first visit sets a password; Folio stores a salted hash in SQLite and protects hidden names and contents behind an expiring session. Hidden files remain stored and count toward disk usage.
-- Search names and tags across the workspace. Search also indexes supported source-code, TXT, Markdown, and CSV content (up to the first 1 MB of each file).
 - Filter by file type, size, and date added/modified. Sort by name, type, size, date added, or last modified.
 - View details including file type, size, upload date, and last modified date. Switch between grid and list layouts.
-- Upload, organize, search, and download ZIP archives. Folio does not unpack or preview archive contents.
+- Upload, organize, and download ZIP archives. Folio does not unpack or preview archive contents.
 - Protect the API and file contents with a workspace access key and an HTTP-only, same-site session cookie when authentication is enabled. Local development skips sign-in by default and binds the API to loopback.
 
 ## Project structure
@@ -56,7 +55,7 @@ Folio can extract readable text from DOCX and PPTX files and cell values from XL
 
 ## Limits and deployment
 
-- Full-text search is available for TXT, Markdown, and CSV only. Searching inside PDF and Office documents needs a text extraction/indexing service.
+- The current interface does not include a search bar or a dedicated Starred section. Files can still be tagged and starred from file actions, but starred files are not shown in a separate view.
 - DOCX, XLSX, and PPTX previews show extracted text and cell values only. Original Office layout rendering and editing Office files are not included. PDF files can be previewed with their saved appearance. Older DOC/XLS/PPT files can be downloaded and opened in a compatible desktop app.
 - This starter app uses one shared access key for a single workspace when authentication is enabled. Local development is intended for use on the same PC and skips sign-in by default. Multi-user accounts, per-user permissions, audit history, and cloud storage need additional services and production authentication.
 - For public internet deployment, add HTTPS, rate limiting, malware scanning, content inspection, backups, and stronger account/session management.
